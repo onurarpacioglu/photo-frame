@@ -427,8 +427,14 @@ function selectFolder(path) {
       }
     }
     if (!photos.length) {
-      showError('No images found. Add photos to this folder and try again.');
-      setTimeout(function() { showScreen('folderScreen'); }, 3000);
+      var list = document.getElementById('folderList');
+      list.innerHTML = '<div style="background:#1c1c1e;border-radius:10px;padding:20px;color:#aaa;font-size:14px;line-height:1.8;text-align:left">'
+        + '⚠️ <strong style="color:#fff">No photos found in this folder.</strong><br><br>'
+        + 'Please add images to:<br>'
+        + '<code style="color:#1a73e8">Dropbox/Apps/Photo Frame +/</code><br><br>'
+        + 'Then come back and tap "Use this folder".'
+        + '</div>';
+      showScreen('folderScreen');
       return;
     }
     state.photos = photos;
