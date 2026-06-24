@@ -1581,7 +1581,17 @@ function goToFolders(e) {
 function toggleSettings(e) {
   e.stopPropagation();
   var sp = document.getElementById('settingsPanel');
-  if (!sp.classList.contains('visible')) syncSettingsUI();
+  if (!sp.classList.contains('visible')) {
+    syncSettingsUI();
+    clearTimeout(state.ctrlTimer);   // keep controls alive while settings are open
+  } else {
+    var ctrl = document.getElementById('controls');
+    clearTimeout(state.ctrlTimer);
+    state.ctrlTimer = setTimeout(function() {
+      ctrl.classList.remove('visible');
+      sp.classList.remove('visible');
+    }, 5000);
+  }
   sp.classList.toggle('visible');
 }
 
