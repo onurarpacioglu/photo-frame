@@ -10,227 +10,145 @@
   <title>Photo Frame</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-
     body {
-      background: #000;
-      color: #fff;
+      background: #000; color: #fff;
       font-family: -apple-system, Helvetica, Arial, sans-serif;
-      height: 100vh;
-      overflow: hidden;
-      -webkit-user-select: none;
-      user-select: none;
+      height: 100vh; overflow: hidden;
+      -webkit-user-select: none; user-select: none;
       -webkit-tap-highlight-color: transparent;
     }
-
-    /* ── Screens ───────────────────────────────── */
     .screen {
-      position: fixed;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-      text-align: center;
-      transition: opacity 0.35s;
-      z-index: 10;
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      display: -webkit-flex; display: flex;
+      -webkit-flex-direction: column; flex-direction: column;
+      -webkit-align-items: center; align-items: center;
+      -webkit-justify-content: center; justify-content: center;
+      padding: 24px; text-align: center;
+      transition: opacity 0.35s; z-index: 10;
     }
     .screen.hidden { opacity: 0; pointer-events: none; }
-
-    /* ── Login ─────────────────────────────────── */
+    /* Login */
     #loginScreen h1  { font-size: 30px; font-weight: 700; margin-bottom: 8px; }
     #loginScreen p   { color: #888; font-size: 15px; margin-bottom: 36px; max-width: 340px; line-height: 1.6; }
     #loginScreen .note { font-size: 12px; color: #555; margin-top: 18px; max-width: 300px; line-height: 1.5; }
-
-    /* ── Folder picker ─────────────────────────── */
+    /* Folder */
     #folderScreen {
-      justify-content: flex-start;
-      padding-top: 44px;
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
+      -webkit-justify-content: flex-start; justify-content: flex-start;
+      padding-top: 44px; overflow-y: auto; -webkit-overflow-scrolling: touch;
     }
-    #folderScreen h2 { font-size: 22px; font-weight: 600; margin-bottom: 6px; }
+    #folderScreen h2   { font-size: 22px; font-weight: 600; margin-bottom: 6px; }
     #folderScreen .hint { font-size: 13px; color: #666; margin-bottom: 20px; }
-    #folderList {
-      width: 100%;
-      max-width: 520px;
-      padding-bottom: 40px;
-    }
+    #folderList { width: 100%; max-width: 520px; padding-bottom: 40px; }
     .folder-row {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      padding: 14px 16px;
-      background: #1c1c1e;
-      border-radius: 10px;
-      margin-bottom: 8px;
-      cursor: pointer;
-      transition: background 0.15s;
+      display: -webkit-flex; display: flex;
+      -webkit-align-items: center; align-items: center;
+      gap: 14px; padding: 14px 16px;
+      background: #1c1c1e; border-radius: 10px;
+      margin-bottom: 8px; cursor: pointer;
     }
     .folder-row:active { background: #2c2c2e; }
-    .folder-icon { font-size: 26px; flex-shrink: 0; }
-    .folder-name { font-size: 16px; font-weight: 500; text-align: left; }
+    .folder-icon  { font-size: 26px; -webkit-flex-shrink: 0; flex-shrink: 0; }
+    .folder-name  { font-size: 16px; font-weight: 500; text-align: left; }
     .folder-count { font-size: 12px; color: #666; text-align: left; margin-top: 2px; }
-
-    /* ── Loading ───────────────────────────────── */
+    /* Loading */
     #loadingScreen p { color: #888; font-size: 15px; margin-top: 14px; }
     .spinner {
       width: 44px; height: 44px;
-      border: 3px solid #2a2a2a;
-      border-top-color: #1a73e8;
+      border: 3px solid #2a2a2a; border-top-color: #1a73e8;
       border-radius: 50%;
+      -webkit-animation: spin 0.8s linear infinite;
       animation: spin 0.8s linear infinite;
     }
+    @-webkit-keyframes spin { to { -webkit-transform: rotate(360deg); } }
     @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* ── Slideshow ─────────────────────────────── */
+    /* Slideshow */
     #slideshow {
-      position: fixed;
-      inset: 0;
-      background: #000;
-      display: none;
-      z-index: 5;
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: #000; display: none; z-index: 5;
     }
     .slide {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      opacity: 0;
-      transition: opacity 1.5s ease-in-out;
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      display: -webkit-flex; display: flex;
+      -webkit-align-items: center; align-items: center;
+      -webkit-justify-content: center; justify-content: center;
+      opacity: 0; transition: opacity 1.5s ease-in-out;
     }
     .slide.active { opacity: 1; }
-    .slide img {
-      max-width: 100%;
-      max-height: 100%;
-      object-fit: contain;
-      display: block;
-    }
-    .slide.cover img { object-fit: cover; width: 100%; height: 100%; }
-
-    /* ── Controls ──────────────────────────────── */
-    #tapZone {
-      position: absolute;
-      inset: 0;
-      z-index: 20;
-    }
+    .slide img    { max-width: 100%; max-height: 100%; display: block; }
+    .slide.cover img { -o-object-fit: cover; object-fit: cover; width: 100%; height: 100%; }
+    /* Controls */
+    #tapZone { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 20; }
     #controls {
-      position: absolute;
-      bottom: 0; left: 0; right: 0;
+      position: absolute; bottom: 0; left: 0; right: 0;
+      background: -webkit-linear-gradient(top, transparent, rgba(0,0,0,0.8));
       background: linear-gradient(transparent, rgba(0,0,0,0.8));
       padding: 40px 20px 22px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      gap: 10px;
-      z-index: 21;
-      opacity: 0;
-      transition: opacity 0.3s;
-      pointer-events: none;
+      display: -webkit-flex; display: flex;
+      -webkit-justify-content: center; justify-content: center;
+      -webkit-align-items: center; align-items: center;
+      gap: 10px; z-index: 21;
+      opacity: 0; transition: opacity 0.3s; pointer-events: none;
     }
     #controls.visible { opacity: 1; pointer-events: auto; }
     .ctrl-btn {
-      background: rgba(255,255,255,0.15);
-      color: #fff;
-      border: none;
-      padding: 9px 18px;
-      border-radius: 20px;
-      font-size: 14px;
-      cursor: pointer;
-      backdrop-filter: blur(6px);
-      -webkit-backdrop-filter: blur(6px);
-      white-space: nowrap;
+      background: rgba(255,255,255,0.15); color: #fff;
+      border: none; padding: 9px 18px; border-radius: 20px;
+      font-size: 14px; cursor: pointer; white-space: nowrap;
     }
     .ctrl-btn:active { background: rgba(255,255,255,0.3); }
-
-    /* ── Settings panel ────────────────────────── */
+    /* Settings */
     #settingsPanel {
-      position: absolute;
-      bottom: 80px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(24,24,26,0.97);
-      border-radius: 14px;
-      padding: 18px 20px 14px;
-      width: 260px;
-      z-index: 30;
-      display: none;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.7);
+      position: absolute; bottom: 80px; left: 50%;
+      -webkit-transform: translateX(-50%); transform: translateX(-50%);
+      background: rgba(24,24,26,0.97); border-radius: 14px;
+      padding: 18px 20px 14px; width: 260px; z-index: 30;
+      display: none; box-shadow: 0 8px 32px rgba(0,0,0,0.7);
     }
     #settingsPanel.visible { display: block; }
-    #settingsPanel h3 { font-size: 14px; font-weight: 600; margin-bottom: 14px; color: #aaa; text-transform: uppercase; letter-spacing: 0.5px; }
+    #settingsPanel h3 {
+      font-size: 14px; font-weight: 600; margin-bottom: 14px;
+      color: #aaa; text-transform: uppercase; letter-spacing: 0.5px;
+    }
     .s-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 12px;
-      font-size: 14px;
-      color: #ddd;
+      display: -webkit-flex; display: flex;
+      -webkit-justify-content: space-between; justify-content: space-between;
+      -webkit-align-items: center; align-items: center;
+      margin-bottom: 12px; font-size: 14px; color: #ddd;
     }
     .s-row select {
-      background: #3a3a3c;
-      border: none;
-      color: #fff;
-      padding: 5px 10px;
-      border-radius: 6px;
-      font-size: 13px;
+      background: #3a3a3c; border: none; color: #fff;
+      padding: 5px 10px; border-radius: 6px; font-size: 13px;
     }
-
-    /* ── Counter & preload ─────────────────────── */
+    /* Counter */
     #photoCounter {
-      position: absolute;
-      top: 14px; right: 14px;
-      font-size: 12px;
-      color: rgba(255,255,255,0.35);
-      z-index: 22;
-      opacity: 0;
-      transition: opacity 0.3s;
+      position: absolute; top: 14px; right: 14px;
+      font-size: 12px; color: rgba(255,255,255,0.35);
+      z-index: 22; opacity: 0; transition: opacity 0.3s;
     }
     #controls.visible ~ #photoCounter { opacity: 1; }
-
+    /* Preload bar */
     #preloadBar {
-      position: absolute;
-      bottom: 0; left: 0;
-      height: 2px;
-      background: #1a73e8;
-      width: 0%;
-      transition: width 0.3s;
-      z-index: 25;
-      opacity: 0;
+      position: absolute; bottom: 0; left: 0;
+      height: 2px; background: #1a73e8; width: 0%;
+      transition: width 0.3s; z-index: 25; opacity: 0;
     }
     #preloadBar.visible { opacity: 1; }
-
-    /* ── Error banner ──────────────────────────── */
+    /* Error */
     #errorBanner {
-      position: fixed;
-      top: 20px; left: 50%;
-      transform: translateX(-50%);
-      background: #b71c1c;
-      color: #fff;
-      padding: 10px 20px;
-      border-radius: 8px;
-      font-size: 14px;
-      z-index: 100;
-      display: none;
-      max-width: 88vw;
-      text-align: center;
-      line-height: 1.5;
+      position: fixed; top: 20px; left: 50%;
+      -webkit-transform: translateX(-50%); transform: translateX(-50%);
+      background: #b71c1c; color: #fff;
+      padding: 10px 20px; border-radius: 8px;
+      font-size: 14px; z-index: 100; display: none;
+      max-width: 88vw; text-align: center; line-height: 1.5;
     }
-
-    /* ── Buttons ───────────────────────────────── */
+    /* Google button */
     .btn-google {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      background: #fff;
-      color: #3c4043;
-      border: none;
-      padding: 12px 26px;
-      border-radius: 8px;
-      font-size: 16px;
-      font-weight: 600;
-      cursor: pointer;
+      display: -webkit-inline-flex; display: inline-flex;
+      -webkit-align-items: center; align-items: center;
+      gap: 10px; background: #fff; color: #3c4043;
+      border: none; padding: 12px 26px; border-radius: 8px;
+      font-size: 16px; font-weight: 600; cursor: pointer;
       box-shadow: 0 2px 10px rgba(0,0,0,0.4);
     }
     .btn-google:active { opacity: 0.85; }
@@ -238,11 +156,10 @@
 </head>
 <body>
 
-<!-- ── Login ───────────────────────────────────── -->
 <div class="screen" id="loginScreen">
   <h1>📷 Photo Frame</h1>
-  <p>Displays photos from a Google Drive folder as a beautiful full-screen slideshow on any device</p>
-  <button class="btn-google" onclick="signIn()">
+  <p>Displays photos from a Google Drive folder as a beautiful full-screen slideshow</p>
+  <button class="btn-google" id="signInBtn">
     <svg width="20" height="20" viewBox="0 0 24 24">
       <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
       <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -254,37 +171,31 @@
   <p class="note">Requires read-only access to Google Drive. Your files are never modified.</p>
 </div>
 
-<!-- ── Loading ──────────────────────────────────── -->
 <div class="screen hidden" id="loadingScreen">
   <div class="spinner"></div>
   <p id="loadingMsg">Loading…</p>
 </div>
 
-<!-- ── Folder Picker ────────────────────────────── -->
 <div class="screen hidden" id="folderScreen">
   <h2>Choose a Folder</h2>
   <p class="hint">Select a Google Drive folder containing photos</p>
   <div id="folderList"></div>
 </div>
 
-<!-- ── Slideshow ────────────────────────────────── -->
 <div id="slideshow">
   <div id="slideA" class="slide"><img id="imgA" src="" alt=""></div>
   <div id="slideB" class="slide"><img id="imgB" src="" alt=""></div>
-
-  <div id="tapZone" onclick="handleTap()"></div>
-
+  <div id="tapZone"></div>
   <div id="controls">
-    <button class="ctrl-btn" onclick="goToFolders(event)">⬅ Folders</button>
-    <button class="ctrl-btn" onclick="skipPhoto(event)">⏭ Next</button>
-    <button class="ctrl-btn" onclick="toggleSettings(event)">⚙ Settings</button>
+    <button class="ctrl-btn" id="btnFolders">⬅ Folders</button>
+    <button class="ctrl-btn" id="btnNext">⏭ Next</button>
+    <button class="ctrl-btn" id="btnSettings">⚙ Settings</button>
   </div>
-
   <div id="settingsPanel">
     <h3>Settings</h3>
     <div class="s-row">
       <span>Interval</span>
-      <select id="intervalSel" onchange="applyInterval()">
+      <select id="intervalSel">
         <option value="5000">5 sec</option>
         <option value="10000" selected>10 sec</option>
         <option value="30000">30 sec</option>
@@ -294,38 +205,35 @@
     </div>
     <div class="s-row">
       <span>Order</span>
-      <select id="orderSel" onchange="applyOrder()">
+      <select id="orderSel">
         <option value="random" selected>Shuffle</option>
         <option value="sequential">Sequential</option>
       </select>
     </div>
     <div class="s-row">
       <span>Fit</span>
-      <select id="fitSel" onchange="applyFit()">
+      <select id="fitSel">
         <option value="contain" selected>Fit (letterbox)</option>
         <option value="cover">Fill (crop)</option>
       </select>
     </div>
   </div>
-
   <div id="photoCounter"></div>
   <div id="preloadBar"></div>
 </div>
 
-<!-- ── Error Banner ─────────────────────────────── -->
 <div id="errorBanner"></div>
 
 <script>
-// ── Config ──────────────────────────────────────
-var CLIENT_ID  = '194507721407-jfqcp2njidut5bp5v75rlbi8u9d32nnj.apps.googleusercontent.com';
-var SCOPE      = 'https://www.googleapis.com/auth/drive.readonly';
-var DRIVE_API  = 'https://www.googleapis.com/drive/v3';
+// ── Config ───────────────────────────────────────
+var CLIENT_ID = '194507721407-jfqcp2njidut5bp5v75rlbi8u9d32nnj.apps.googleusercontent.com';
+var SCOPE     = 'https://www.googleapis.com/auth/drive.readonly';
+var DRIVE_API = 'https://www.googleapis.com/drive/v3';
 
 // ── State ────────────────────────────────────────
 var state = {
   token:       null,
-  tokenExpiry: 0,
-  photos:      [],   // array of {id, name}
+  photos:      [],
   index:       0,
   activeSlide: 'A',
   timer:       null,
@@ -334,22 +242,59 @@ var state = {
   fit:         'contain',
   order:       'random'
 };
+var blobCache      = {};
+var blobCacheOrder = [];
+var MAX_CACHE      = 12;
 
-// blob URL cache: fileId -> objectURL
-var blobCache = {};
-var blobCacheOrder = []; // for LRU eviction
-var MAX_CACHE = 12;
+// ── Helpers: no URLSearchParams (iOS 9) ──────────
+function buildQuery(params) {
+  var parts = [];
+  for (var k in params) {
+    if (params.hasOwnProperty(k)) {
+      parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(params[k]));
+    }
+  }
+  return parts.join('&');
+}
+
+function parseHash(hash) {
+  var result = {};
+  var str = hash.charAt(0) === '#' ? hash.substring(1) : hash;
+  var pairs = str.split('&');
+  for (var i = 0; i < pairs.length; i++) {
+    var idx = pairs[i].indexOf('=');
+    if (idx > -1) {
+      result[decodeURIComponent(pairs[i].substring(0, idx))] =
+        decodeURIComponent(pairs[i].substring(idx + 1));
+    }
+  }
+  return result;
+}
+
+// ── NodeList forEach shim (iOS 9) ────────────────
+function each(nodeList, fn) {
+  for (var i = 0; i < nodeList.length; i++) fn(nodeList[i]);
+}
 
 // ── Boot ─────────────────────────────────────────
 window.onload = function() {
+  // Wire up buttons here (not inline onclick) for reliability
+  document.getElementById('signInBtn').addEventListener('click', function() { signIn(false); });
+  document.getElementById('tapZone').addEventListener('click', handleTap);
+  document.getElementById('btnFolders').addEventListener('click', goToFolders);
+  document.getElementById('btnNext').addEventListener('click', skipPhoto);
+  document.getElementById('btnSettings').addEventListener('click', toggleSettings);
+  document.getElementById('intervalSel').addEventListener('change', applyInterval);
+  document.getElementById('orderSel').addEventListener('change', applyOrder);
+  document.getElementById('fitSel').addEventListener('change', applyFit);
+
   var hash = window.location.hash;
   if (hash && hash.indexOf('access_token') !== -1) {
-    var p = new URLSearchParams(hash.substring(1));
-    state.token       = p.get('access_token');
-    var expiresIn     = parseInt(p.get('expires_in') || '3600');
-    state.tokenExpiry = Date.now() + (expiresIn - 120) * 1000;
+    var p = parseHash(hash);
+    state.token = p['access_token'];
+    var expiresIn = parseInt(p['expires_in'] || '3600');
+    setTimeout(function() { signIn(true); }, (expiresIn - 120) * 1000);
     history.replaceState(null, '', window.location.pathname);
-    scheduleTokenRefresh(expiresIn - 120);
     showScreen('loadingScreen');
     loadFolders();
   } else {
@@ -357,110 +302,105 @@ window.onload = function() {
   }
 };
 
-// ── Auth ──────────────────────────────────────────
+// ── Auth ─────────────────────────────────────────
 function signIn(silent) {
   var redirect = window.location.origin + window.location.pathname;
-  var p = new URLSearchParams({
+  var url = 'https://accounts.google.com/o/oauth2/v2/auth?' + buildQuery({
     client_id:     CLIENT_ID,
     redirect_uri:  redirect,
     response_type: 'token',
     scope:         SCOPE,
     prompt:        silent ? 'none' : 'select_account'
   });
-  window.location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + p.toString();
+  window.location.href = url;
 }
 
-function scheduleTokenRefresh(inSeconds) {
-  setTimeout(function() { signIn(true); }, inSeconds * 1000);
+// ── API helpers (Promise-based, no async/await) ──
+function apiGet(url) {
+  return fetch(url, {
+    headers: { 'Authorization': 'Bearer ' + state.token }
+  }).then(function(res) {
+    if (res.status === 401) { signIn(false); throw new Error('Auth expired'); }
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return res.json();
+  });
+}
+
+// Recursively fetch all pages
+function fetchAllFiles(baseUrl, accumulated) {
+  accumulated = accumulated || [];
+  return apiGet(baseUrl).then(function(res) {
+    var all = accumulated.concat(res.files || []);
+    if (res.nextPageToken) {
+      return fetchAllFiles(baseUrl + '&pageToken=' + encodeURIComponent(res.nextPageToken), all);
+    }
+    return all;
+  });
 }
 
 // ── Folders ───────────────────────────────────────
-async function loadFolders() {
+function loadFolders() {
   setLoading('Loading your folders…');
-  try {
-    var folders = [];
-    var pageToken = null;
-    do {
-      var url = DRIVE_API + '/files'
-        + '?q=' + encodeURIComponent("mimeType='application/vnd.google-apps.folder' and 'root' in parents and trashed=false")
-        + '&fields=nextPageToken,files(id,name)'
-        + '&orderBy=name'
-        + '&pageSize=100';
-      if (pageToken) url += '&pageToken=' + encodeURIComponent(pageToken);
-      var res = await apiGet(url);
-      if (res.files) folders = folders.concat(res.files);
-      pageToken = res.nextPageToken || null;
-    } while (pageToken);
+  var url = DRIVE_API + '/files'
+    + '?q=' + encodeURIComponent("mimeType='application/vnd.google-apps.folder' and 'root' in parents and trashed=false")
+    + '&fields=' + encodeURIComponent('nextPageToken,files(id,name)')
+    + '&orderBy=name&pageSize=100';
 
+  fetchAllFiles(url).then(function(folders) {
     renderFolders(folders);
-  } catch(e) {
+  }).catch(function(e) {
     showError('Could not load folders: ' + e.message);
     setTimeout(function() { showScreen('loginScreen'); }, 3000);
-  }
+  });
 }
 
 function renderFolders(folders) {
   var list = document.getElementById('folderList');
   list.innerHTML = '';
-
   if (!folders.length) {
-    list.innerHTML = '<p style="color:#666;font-size:14px">No folders found in the root of your Google Drive.<br><br>Create a folder, add some photos to it, and refresh.</p>';
+    list.innerHTML = '<p style="color:#666;font-size:14px;line-height:1.7">No folders found in your Google Drive root.<br>Create a folder, add photos to it, then refresh.</p>';
     showScreen('folderScreen');
     return;
   }
-
-  folders.forEach(function(f) {
-    var row = document.createElement('div');
-    row.className = 'folder-row';
-    row.innerHTML = '<span class="folder-icon">📁</span>'
-      + '<div><div class="folder-name">' + escHtml(f.name) + '</div>'
-      + '<div class="folder-count">Tap to load photos</div></div>';
-    row.onclick = function() { selectFolder(f); };
-    list.appendChild(row);
-  });
-
+  for (var i = 0; i < folders.length; i++) {
+    (function(f) {
+      var row = document.createElement('div');
+      row.className = 'folder-row';
+      row.innerHTML = '<span class="folder-icon">📁</span>'
+        + '<div><div class="folder-name">' + escHtml(f.name) + '</div>'
+        + '<div class="folder-count">Tap to load photos</div></div>';
+      row.addEventListener('click', function() { selectFolder(f); });
+      list.appendChild(row);
+    })(folders[i]);
+  }
   showScreen('folderScreen');
 }
 
 // ── Load Photos ───────────────────────────────────
-async function selectFolder(folder) {
+function selectFolder(folder) {
   showScreen('loadingScreen');
   setLoading('Scanning folder…');
-  try {
-    var photos = [];
-    var pageToken = null;
-    do {
-      var q = "'" + folder.id + "' in parents and trashed=false and (mimeType contains 'image/')";
-      var url = DRIVE_API + '/files'
-        + '?q=' + encodeURIComponent(q)
-        + '&fields=nextPageToken,files(id,name,mimeType)'
-        + '&orderBy=name'
-        + '&pageSize=1000';
-      if (pageToken) url += '&pageToken=' + encodeURIComponent(pageToken);
-      var res = await apiGet(url);
-      if (res.files) photos = photos.concat(res.files);
-      pageToken = res.nextPageToken || null;
-      setLoading('Found ' + photos.length + ' photos…');
-    } while (pageToken);
+  var q = "'" + folder.id + "' in parents and trashed=false and (mimeType contains 'image/')";
+  var url = DRIVE_API + '/files'
+    + '?q=' + encodeURIComponent(q)
+    + '&fields=' + encodeURIComponent('nextPageToken,files(id,name,mimeType)')
+    + '&orderBy=name&pageSize=1000';
 
+  fetchAllFiles(url).then(function(photos) {
     if (!photos.length) {
-      showError('No images found in "' + folder.name + '". Add some photos and try again.');
+      showError('No images found in "' + folder.name + '".');
       setTimeout(function() { showScreen('folderScreen'); }, 3000);
       return;
     }
-
     state.photos = photos;
     state.index  = 0;
     if (state.order === 'random') shuffle(state.photos);
-
-    // Clear blob cache when switching folders
     clearBlobCache();
-
     startSlideshow();
-  } catch(e) {
-    showError('Error loading folder: ' + e.message);
+  }).catch(function(e) {
+    showError('Error: ' + e.message);
     setTimeout(function() { showScreen('folderScreen'); }, 3000);
-  }
+  });
 }
 
 // ── Slideshow ─────────────────────────────────────
@@ -471,21 +411,18 @@ function startSlideshow() {
   scheduleNext();
 }
 
-async function advanceTo(idx) {
+function advanceTo(idx) {
   var photo = state.photos[idx];
   document.getElementById('photoCounter').textContent = (idx + 1) + ' / ' + state.photos.length;
 
-  try {
-    var url = await getImageUrl(photo.id);
+  getImageUrl(photo.id).then(function(url) {
     displaySlide(url);
-    // Preload next 2
     preloadAhead(idx, 2);
-  } catch(e) {
-    // Skip this photo on error
+  }).catch(function(e) {
     console.warn('Skipping ' + photo.name + ': ' + e.message);
     state.index = (idx + 1) % state.photos.length;
     advanceTo(state.index);
-  }
+  });
 }
 
 function displaySlide(url) {
@@ -497,13 +434,11 @@ function displaySlide(url) {
   var currSlide = document.getElementById(currSlideId);
   var nextImg   = document.getElementById(nextImgId);
 
-  // Apply fit mode
   nextSlide.className = 'slide' + (state.fit === 'cover' ? ' cover' : '');
-
   nextImg.onload = function() {
     nextSlide.classList.add('active');
     currSlide.classList.remove('active');
-    state.activeSlide = nextSlideId === 'slideA' ? 'A' : 'B';
+    state.activeSlide = (nextSlideId === 'slideA') ? 'A' : 'B';
   };
   nextImg.src = url;
 }
@@ -519,60 +454,52 @@ function scheduleNext() {
 
 function preloadAhead(fromIdx, count) {
   for (var i = 1; i <= count; i++) {
-    var idx = (fromIdx + i) % state.photos.length;
     (function(photoId) {
       if (!blobCache[photoId]) {
         getImageUrl(photoId).catch(function() {});
       }
-    })(state.photos[idx].id);
+    })(state.photos[(fromIdx + i) % state.photos.length].id);
   }
 }
 
 // ── Blob Cache ────────────────────────────────────
-async function getImageUrl(fileId) {
+function getImageUrl(fileId) {
   if (blobCache[fileId]) {
-    // Refresh LRU order
     var pos = blobCacheOrder.indexOf(fileId);
     if (pos > -1) blobCacheOrder.splice(pos, 1);
     blobCacheOrder.push(fileId);
-    return blobCache[fileId];
+    return Promise.resolve(blobCache[fileId]);
   }
 
-  // Show preload bar
   var bar = document.getElementById('preloadBar');
   bar.style.width = '0%';
   bar.classList.add('visible');
 
-  var res = await fetch(DRIVE_API + '/files/' + fileId + '?alt=media', {
-    headers: { Authorization: 'Bearer ' + state.token }
+  return fetch(DRIVE_API + '/files/' + fileId + '?alt=media', {
+    headers: { 'Authorization': 'Bearer ' + state.token }
+  }).then(function(res) {
+    if (res.status === 401) { signIn(false); throw new Error('Auth expired'); }
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    bar.style.width = '60%';
+    return res.blob();
+  }).then(function(blob) {
+    bar.style.width = '100%';
+    setTimeout(function() { bar.classList.remove('visible'); bar.style.width = '0%'; }, 300);
+    var url = URL.createObjectURL(blob);
+    if (blobCacheOrder.length >= MAX_CACHE) {
+      var oldest = blobCacheOrder.shift();
+      URL.revokeObjectURL(blobCache[oldest]);
+      delete blobCache[oldest];
+    }
+    blobCache[fileId] = url;
+    blobCacheOrder.push(fileId);
+    return url;
   });
-
-  if (res.status === 401) { signIn(false); throw new Error('Auth expired'); }
-  if (!res.ok) throw new Error('HTTP ' + res.status);
-
-  bar.style.width = '60%';
-  var blob = await res.blob();
-  bar.style.width = '100%';
-  setTimeout(function() { bar.classList.remove('visible'); bar.style.width = '0%'; }, 300);
-
-  var url = URL.createObjectURL(blob);
-
-  // Evict LRU if cache full
-  if (blobCacheOrder.length >= MAX_CACHE) {
-    var oldest = blobCacheOrder.shift();
-    URL.revokeObjectURL(blobCache[oldest]);
-    delete blobCache[oldest];
-  }
-
-  blobCache[fileId] = url;
-  blobCacheOrder.push(fileId);
-  return url;
 }
 
 function clearBlobCache() {
-  Object.keys(blobCache).forEach(function(id) {
-    URL.revokeObjectURL(blobCache[id]);
-  });
+  var keys = Object.keys(blobCache);
+  for (var i = 0; i < keys.length; i++) URL.revokeObjectURL(blobCache[keys[i]]);
   blobCache = {};
   blobCacheOrder = [];
 }
@@ -582,7 +509,6 @@ function handleTap() {
   var ctrl = document.getElementById('controls');
   var sp   = document.getElementById('settingsPanel');
   sp.classList.remove('visible');
-
   if (ctrl.classList.contains('visible')) {
     ctrl.classList.remove('visible');
   } else {
@@ -617,7 +543,6 @@ function toggleSettings(e) {
   document.getElementById('settingsPanel').classList.toggle('visible');
 }
 
-// ── Settings ──────────────────────────────────────
 function applyInterval() {
   state.interval = parseInt(document.getElementById('intervalSel').value);
   clearTimeout(state.timer);
@@ -626,8 +551,7 @@ function applyInterval() {
 
 function applyFit() {
   state.fit = document.getElementById('fitSel').value;
-  // Apply to currently visible slide
-  var active = state.activeSlide === 'A' ? 'slideA' : 'slideB';
+  var active = (state.activeSlide === 'A') ? 'slideA' : 'slideB';
   var el = document.getElementById(active);
   el.className = 'slide active' + (state.fit === 'cover' ? ' cover' : '');
 }
@@ -644,30 +568,18 @@ function applyOrder() {
 
 // ── Utilities ─────────────────────────────────────
 function showScreen(id) {
-  document.querySelectorAll('.screen').forEach(function(s) {
+  each(document.querySelectorAll('.screen'), function(s) {
     if (id === null) s.classList.add('hidden');
-    else s.classList.toggle('hidden', s.id !== id);
+    else { if (s.id === id) s.classList.remove('hidden'); else s.classList.add('hidden'); }
   });
 }
 
-function setLoading(msg) {
-  document.getElementById('loadingMsg').textContent = msg;
-}
+function setLoading(msg) { document.getElementById('loadingMsg').textContent = msg; }
 
 function showError(msg) {
   var b = document.getElementById('errorBanner');
-  b.textContent = msg;
-  b.style.display = 'block';
+  b.textContent = msg; b.style.display = 'block';
   setTimeout(function() { b.style.display = 'none'; }, 5000);
-}
-
-async function apiGet(url) {
-  var res = await fetch(url, {
-    headers: { Authorization: 'Bearer ' + state.token }
-  });
-  if (res.status === 401) { signIn(false); throw new Error('Auth expired'); }
-  if (!res.ok) throw new Error('HTTP ' + res.status + ' on ' + url);
-  return res.json();
 }
 
 function shuffle(arr) {
