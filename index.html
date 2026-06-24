@@ -27,11 +27,34 @@
       transition: opacity 0.35s; z-index: 10;
     }
     .screen.hidden { opacity: 0; pointer-events: none; }
-    /* Login */
-    #loginScreen h1  { font-size: 30px; font-weight: 700; margin-bottom: 8px; }
-    #loginScreen p   { color: #888; font-size: 15px; margin-bottom: 36px; max-width: 340px; line-height: 1.6; }
-    #loginScreen .note { font-size: 12px; color: #555; margin-top: 18px; max-width: 300px; line-height: 1.5; }
-    /* Folder */
+
+    /* Token screen */
+    #tokenScreen h1  { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+    #tokenScreen p   { color: #888; font-size: 14px; margin-bottom: 24px; max-width: 340px; line-height: 1.6; }
+    #tokenInput {
+      width: 100%; max-width: 420px;
+      background: #1c1c1e; border: 1px solid #333;
+      color: #fff; padding: 12px 14px;
+      border-radius: 8px; font-size: 13px;
+      font-family: monospace;
+      margin-bottom: 12px;
+      -webkit-user-select: text; user-select: text;
+    }
+    #tokenInput:focus { outline: none; border-color: #1a73e8; }
+    .btn-primary {
+      background: #1a73e8; color: #fff;
+      border: none; padding: 12px 28px;
+      border-radius: 8px; font-size: 16px;
+      font-weight: 600; cursor: pointer;
+      width: 100%; max-width: 420px;
+    }
+    .btn-primary:active { opacity: 0.85; }
+    #tokenScreen .note {
+      font-size: 11px; color: #555;
+      margin-top: 14px; max-width: 340px; line-height: 1.5;
+    }
+
+    /* Folder screen */
     #folderScreen {
       -webkit-justify-content: flex-start; justify-content: flex-start;
       padding-top: 44px; overflow-y: auto; -webkit-overflow-scrolling: touch;
@@ -50,6 +73,8 @@
     .folder-icon  { font-size: 26px; -webkit-flex-shrink: 0; flex-shrink: 0; }
     .folder-name  { font-size: 16px; font-weight: 500; text-align: left; }
     .folder-count { font-size: 12px; color: #666; text-align: left; margin-top: 2px; }
+    .root-row     { background: #0d2e4e; }
+
     /* Loading */
     #loadingScreen p { color: #888; font-size: 15px; margin-top: 14px; }
     .spinner {
@@ -61,6 +86,7 @@
     }
     @-webkit-keyframes spin { to { -webkit-transform: rotate(360deg); } }
     @keyframes spin { to { transform: rotate(360deg); } }
+
     /* Slideshow */
     #slideshow {
       position: fixed; top: 0; left: 0; right: 0; bottom: 0;
@@ -75,7 +101,11 @@
     }
     .slide.active { opacity: 1; }
     .slide img    { max-width: 100%; max-height: 100%; display: block; }
-    .slide.cover img { -o-object-fit: cover; object-fit: cover; width: 100%; height: 100%; }
+    .slide.cover img {
+      -o-object-fit: cover; object-fit: cover;
+      width: 100%; height: 100%;
+    }
+
     /* Controls */
     #tapZone { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 20; }
     #controls {
@@ -96,6 +126,7 @@
       font-size: 14px; cursor: pointer; white-space: nowrap;
     }
     .ctrl-btn:active { background: rgba(255,255,255,0.3); }
+
     /* Settings */
     #settingsPanel {
       position: absolute; bottom: 80px; left: 50%;
@@ -119,20 +150,21 @@
       background: #3a3a3c; border: none; color: #fff;
       padding: 5px 10px; border-radius: 6px; font-size: 13px;
     }
-    /* Counter */
+
+    /* Counter & preload */
     #photoCounter {
       position: absolute; top: 14px; right: 14px;
       font-size: 12px; color: rgba(255,255,255,0.35);
       z-index: 22; opacity: 0; transition: opacity 0.3s;
     }
     #controls.visible ~ #photoCounter { opacity: 1; }
-    /* Preload bar */
     #preloadBar {
       position: absolute; bottom: 0; left: 0;
       height: 2px; background: #1a73e8; width: 0%;
-      transition: width 0.3s; z-index: 25; opacity: 0;
+      transition: width 0.4s; z-index: 25; opacity: 0;
     }
     #preloadBar.visible { opacity: 1; }
+
     /* Error */
     #errorBanner {
       position: fixed; top: 20px; left: 50%;
@@ -142,46 +174,33 @@
       font-size: 14px; z-index: 100; display: none;
       max-width: 88vw; text-align: center; line-height: 1.5;
     }
-    /* Google button */
-    .btn-google {
-      display: -webkit-inline-flex; display: inline-flex;
-      -webkit-align-items: center; align-items: center;
-      gap: 10px; background: #fff; color: #3c4043;
-      border: none; padding: 12px 26px; border-radius: 8px;
-      font-size: 16px; font-weight: 600; cursor: pointer;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.4);
-    }
-    .btn-google:active { opacity: 0.85; }
   </style>
 </head>
 <body>
 
-<div class="screen" id="loginScreen">
+<!-- Token entry -->
+<div class="screen" id="tokenScreen">
   <h1>📷 Photo Frame</h1>
-  <p>Displays photos from a Google Drive folder as a beautiful full-screen slideshow</p>
-  <button class="btn-google" id="signInBtn">
-    <svg width="20" height="20" viewBox="0 0 24 24">
-      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
-      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-    </svg>
-    Sign in with Google
-  </button>
-  <p class="note">Requires read-only access to Google Drive. Your files are never modified.</p>
+  <p>Enter your Dropbox access token to connect to your photos. It will be saved on this device.</p>
+  <input type="password" id="tokenInput" placeholder="Paste your Dropbox access token here">
+  <button class="btn-primary" id="btnConnect">Connect</button>
+  <p class="note">Your token is stored only in this browser and is never sent anywhere except Dropbox.</p>
 </div>
 
+<!-- Loading -->
 <div class="screen hidden" id="loadingScreen">
   <div class="spinner"></div>
   <p id="loadingMsg">Loading…</p>
 </div>
 
+<!-- Folder picker -->
 <div class="screen hidden" id="folderScreen">
   <h2>Choose a Folder</h2>
-  <p class="hint">Select a Google Drive folder containing photos</p>
+  <p class="hint">Select a folder containing your photos</p>
   <div id="folderList"></div>
 </div>
 
+<!-- Slideshow -->
 <div id="slideshow">
   <div id="slideA" class="slide"><img id="imgA" src="" alt=""></div>
   <div id="slideB" class="slide"><img id="imgB" src="" alt=""></div>
@@ -225,15 +244,14 @@
 <div id="errorBanner"></div>
 
 <script>
-// ── Config ───────────────────────────────────────
-var CLIENT_ID = '194507721407-jfqcp2njidut5bp5v75rlbi8u9d32nnj.apps.googleusercontent.com';
-var SCOPE     = 'https://www.googleapis.com/auth/drive.readonly';
-var DRIVE_API = 'https://www.googleapis.com/drive/v3';
+var DBX_API     = 'https://api.dropboxapi.com/2';
+var IMAGE_EXTS  = ['jpg','jpeg','png','gif','webp','bmp','tiff','tif','heic'];
+var TOKEN_KEY   = 'pf_dbx_token';
 
-// ── State ────────────────────────────────────────
+// State
 var state = {
   token:       null,
-  photos:      [],
+  photos:      [],   // [{name, path}]
   index:       0,
   activeSlide: 'A',
   timer:       null,
@@ -242,44 +260,21 @@ var state = {
   fit:         'contain',
   order:       'random'
 };
-var blobCache      = {};
-var blobCacheOrder = [];
-var MAX_CACHE      = 12;
 
-// ── Helpers: no URLSearchParams (iOS 9) ──────────
-function buildQuery(params) {
-  var parts = [];
-  for (var k in params) {
-    if (params.hasOwnProperty(k)) {
-      parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(params[k]));
-    }
-  }
-  return parts.join('&');
+// Temporary link cache: path -> {url, expiresAt}
+var linkCache = {};
+
+// ── NodeList shim (iOS 9) ──────────────────────
+function each(list, fn) {
+  for (var i = 0; i < list.length; i++) fn(list[i]);
 }
 
-function parseHash(hash) {
-  var result = {};
-  var str = hash.charAt(0) === '#' ? hash.substring(1) : hash;
-  var pairs = str.split('&');
-  for (var i = 0; i < pairs.length; i++) {
-    var idx = pairs[i].indexOf('=');
-    if (idx > -1) {
-      result[decodeURIComponent(pairs[i].substring(0, idx))] =
-        decodeURIComponent(pairs[i].substring(idx + 1));
-    }
-  }
-  return result;
-}
-
-// ── NodeList forEach shim (iOS 9) ────────────────
-function each(nodeList, fn) {
-  for (var i = 0; i < nodeList.length; i++) fn(nodeList[i]);
-}
-
-// ── Boot ─────────────────────────────────────────
+// ── Boot ──────────────────────────────────────
 window.onload = function() {
-  // Wire up buttons here (not inline onclick) for reliability
-  document.getElementById('signInBtn').addEventListener('click', function() { signIn(false); });
+  document.getElementById('btnConnect').addEventListener('click', onConnect);
+  document.getElementById('tokenInput').addEventListener('keydown', function(e) {
+    if (e.keyCode === 13) onConnect();
+  });
   document.getElementById('tapZone').addEventListener('click', handleTap);
   document.getElementById('btnFolders').addEventListener('click', goToFolders);
   document.getElementById('btnNext').addEventListener('click', skipPhoto);
@@ -288,122 +283,174 @@ window.onload = function() {
   document.getElementById('orderSel').addEventListener('change', applyOrder);
   document.getElementById('fitSel').addEventListener('change', applyFit);
 
-  var hash = window.location.hash;
-  if (hash && hash.indexOf('access_token') !== -1) {
-    var p = parseHash(hash);
-    state.token = p['access_token'];
-    var expiresIn = parseInt(p['expires_in'] || '3600');
-    setTimeout(function() { signIn(true); }, (expiresIn - 120) * 1000);
-    history.replaceState(null, '', window.location.pathname);
+  // Restore saved token
+  var saved = null;
+  try { saved = localStorage.getItem(TOKEN_KEY); } catch(e) {}
+  if (saved) {
+    state.token = saved;
     showScreen('loadingScreen');
-    loadFolders();
+    loadFolders('');
   } else {
-    showScreen('loginScreen');
+    showScreen('tokenScreen');
   }
 };
 
-// ── Auth ─────────────────────────────────────────
-function signIn(silent) {
-  var redirect = window.location.origin + window.location.pathname;
-  var url = 'https://accounts.google.com/o/oauth2/v2/auth?' + buildQuery({
-    client_id:     CLIENT_ID,
-    redirect_uri:  redirect,
-    response_type: 'token',
-    scope:         SCOPE,
-    prompt:        silent ? 'none' : 'select_account'
-  });
-  window.location.href = url;
+// ── Token ────────────────────────────────────
+function onConnect() {
+  var val = document.getElementById('tokenInput').value.trim();
+  if (!val) { showError('Please paste your Dropbox token.'); return; }
+  state.token = val;
+  try { localStorage.setItem(TOKEN_KEY, val); } catch(e) {}
+  showScreen('loadingScreen');
+  loadFolders('');
 }
 
-// ── API helpers (Promise-based, no async/await) ──
-function apiGet(url) {
-  return fetch(url, {
-    headers: { 'Authorization': 'Bearer ' + state.token }
+function clearToken() {
+  state.token = null;
+  try { localStorage.removeItem(TOKEN_KEY); } catch(e) {}
+  document.getElementById('tokenInput').value = '';
+  showScreen('tokenScreen');
+}
+
+// ── API ───────────────────────────────────────
+function dbxPost(endpoint, body) {
+  return fetch(DBX_API + endpoint, {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer ' + state.token,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
   }).then(function(res) {
-    if (res.status === 401) { signIn(false); throw new Error('Auth expired'); }
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    if (res.status === 401) {
+      clearToken();
+      throw new Error('Token expired or invalid. Please enter a new token.');
+    }
+    if (!res.ok) {
+      return res.text().then(function(t) { throw new Error('Dropbox error: ' + t); });
+    }
     return res.json();
   });
 }
 
-// Recursively fetch all pages
-function fetchAllFiles(baseUrl, accumulated) {
+// Fetch all entries with pagination
+function listAll(path, accumulated) {
   accumulated = accumulated || [];
-  return apiGet(baseUrl).then(function(res) {
-    var all = accumulated.concat(res.files || []);
-    if (res.nextPageToken) {
-      return fetchAllFiles(baseUrl + '&pageToken=' + encodeURIComponent(res.nextPageToken), all);
+  return dbxPost('/files/list_folder', {
+    path: path,
+    recursive: false,
+    include_media_info: false,
+    include_deleted: false,
+    include_has_explicit_shared_members: false
+  }).then(function(res) {
+    var all = accumulated.concat(res.entries || []);
+    if (res.has_more) {
+      return listAllContinue(res.cursor, all);
     }
     return all;
   });
 }
 
-// ── Folders ───────────────────────────────────────
-function loadFolders() {
-  setLoading('Loading your folders…');
-  var url = DRIVE_API + '/files'
-    + '?q=' + encodeURIComponent("mimeType='application/vnd.google-apps.folder' and 'root' in parents and trashed=false")
-    + '&fields=' + encodeURIComponent('nextPageToken,files(id,name)')
-    + '&orderBy=name&pageSize=100';
+function listAllContinue(cursor, accumulated) {
+  return dbxPost('/files/list_folder/continue', { cursor: cursor })
+    .then(function(res) {
+      var all = accumulated.concat(res.entries || []);
+      if (res.has_more) return listAllContinue(res.cursor, all);
+      return all;
+    });
+}
 
-  fetchAllFiles(url).then(function(folders) {
-    renderFolders(folders);
+// ── Folders ───────────────────────────────────
+function loadFolders(path) {
+  setLoading('Loading folders…');
+  listAll(path).then(function(entries) {
+    var folders = [];
+    for (var i = 0; i < entries.length; i++) {
+      if (entries[i]['.tag'] === 'folder') folders.push(entries[i]);
+    }
+    renderFolders(path, folders);
   }).catch(function(e) {
-    showError('Could not load folders: ' + e.message);
-    setTimeout(function() { showScreen('loginScreen'); }, 3000);
+    showError(e.message);
+    if (e.message.indexOf('Token') !== -1) return;
+    setTimeout(function() { showScreen('tokenScreen'); }, 3000);
   });
 }
 
-function renderFolders(folders) {
+function renderFolders(currentPath, folders) {
   var list = document.getElementById('folderList');
   list.innerHTML = '';
-  if (!folders.length) {
-    list.innerHTML = '<p style="color:#666;font-size:14px;line-height:1.7">No folders found in your Google Drive root.<br>Create a folder, add photos to it, then refresh.</p>';
-    showScreen('folderScreen');
-    return;
-  }
+
+  // "Use this folder" option — show photos directly in current folder
+  var useRow = document.createElement('div');
+  useRow.className = 'folder-row root-row';
+  useRow.innerHTML = '<span class="folder-icon">▶️</span>'
+    + '<div><div class="folder-name">Use this folder</div>'
+    + '<div class="folder-count">Show all photos here</div></div>';
+  useRow.addEventListener('click', function() { selectFolder(currentPath); });
+  list.appendChild(useRow);
+
+  // Subfolders
   for (var i = 0; i < folders.length; i++) {
     (function(f) {
       var row = document.createElement('div');
       row.className = 'folder-row';
       row.innerHTML = '<span class="folder-icon">📁</span>'
         + '<div><div class="folder-name">' + escHtml(f.name) + '</div>'
-        + '<div class="folder-count">Tap to load photos</div></div>';
-      row.addEventListener('click', function() { selectFolder(f); });
+        + '<div class="folder-count">Tap to browse</div></div>';
+      row.addEventListener('click', function() {
+        showScreen('loadingScreen');
+        loadFolders(f.path_lower);
+      });
       list.appendChild(row);
     })(folders[i]);
   }
+
+  if (!folders.length && currentPath === '') {
+    list.innerHTML += '<p style="color:#555;font-size:13px;margin-top:12px;line-height:1.7">'
+      + 'No subfolders found. Add photos to your Dropbox/Apps/Photo Frame +/ folder, '
+      + 'then tap "Use this folder" above.</p>';
+  }
+
   showScreen('folderScreen');
 }
 
-// ── Load Photos ───────────────────────────────────
-function selectFolder(folder) {
+// ── Load Photos ───────────────────────────────
+function selectFolder(path) {
   showScreen('loadingScreen');
-  setLoading('Scanning folder…');
-  var q = "'" + folder.id + "' in parents and trashed=false and (mimeType contains 'image/')";
-  var url = DRIVE_API + '/files'
-    + '?q=' + encodeURIComponent(q)
-    + '&fields=' + encodeURIComponent('nextPageToken,files(id,name,mimeType)')
-    + '&orderBy=name&pageSize=1000';
-
-  fetchAllFiles(url).then(function(photos) {
+  setLoading('Loading photos…');
+  listAll(path).then(function(entries) {
+    var photos = [];
+    for (var i = 0; i < entries.length; i++) {
+      var e = entries[i];
+      if (e['.tag'] === 'file' && isImage(e.name)) {
+        photos.push({ name: e.name, path: e.path_lower });
+      }
+    }
     if (!photos.length) {
-      showError('No images found in "' + folder.name + '".');
+      showError('No images found. Add photos to this folder and try again.');
       setTimeout(function() { showScreen('folderScreen'); }, 3000);
       return;
     }
     state.photos = photos;
     state.index  = 0;
     if (state.order === 'random') shuffle(state.photos);
-    clearBlobCache();
+    linkCache = {};
     startSlideshow();
   }).catch(function(e) {
-    showError('Error: ' + e.message);
+    showError(e.message);
     setTimeout(function() { showScreen('folderScreen'); }, 3000);
   });
 }
 
-// ── Slideshow ─────────────────────────────────────
+function isImage(name) {
+  var ext = name.split('.').pop().toLowerCase();
+  for (var i = 0; i < IMAGE_EXTS.length; i++) {
+    if (IMAGE_EXTS[i] === ext) return true;
+  }
+  return false;
+}
+
+// ── Slideshow ─────────────────────────────────
 function startSlideshow() {
   document.getElementById('slideshow').style.display = 'block';
   showScreen(null);
@@ -413,13 +460,17 @@ function startSlideshow() {
 
 function advanceTo(idx) {
   var photo = state.photos[idx];
-  document.getElementById('photoCounter').textContent = (idx + 1) + ' / ' + state.photos.length;
+  document.getElementById('photoCounter').textContent =
+    (idx + 1) + ' / ' + state.photos.length;
 
-  getImageUrl(photo.id).then(function(url) {
+  showPreloadBar(true);
+  getTempLink(photo.path).then(function(url) {
+    showPreloadBar(false);
     displaySlide(url);
     preloadAhead(idx, 2);
   }).catch(function(e) {
-    console.warn('Skipping ' + photo.name + ': ' + e.message);
+    showPreloadBar(false);
+    console.warn('Skip ' + photo.name + ': ' + e.message);
     state.index = (idx + 1) % state.photos.length;
     advanceTo(state.index);
   });
@@ -440,6 +491,11 @@ function displaySlide(url) {
     currSlide.classList.remove('active');
     state.activeSlide = (nextSlideId === 'slideA') ? 'A' : 'B';
   };
+  nextImg.onerror = function() {
+    // Link may have expired — clear cache and retry once
+    delete linkCache[state.photos[state.index].path];
+    advanceTo(state.index);
+  };
   nextImg.src = url;
 }
 
@@ -454,57 +510,32 @@ function scheduleNext() {
 
 function preloadAhead(fromIdx, count) {
   for (var i = 1; i <= count; i++) {
-    (function(photoId) {
-      if (!blobCache[photoId]) {
-        getImageUrl(photoId).catch(function() {});
+    (function(p) {
+      if (!linkCache[p] || linkCache[p].expiresAt < Date.now() + 60000) {
+        getTempLink(p).catch(function() {});
       }
-    })(state.photos[(fromIdx + i) % state.photos.length].id);
+    })(state.photos[(fromIdx + i) % state.photos.length].path);
   }
 }
 
-// ── Blob Cache ────────────────────────────────────
-function getImageUrl(fileId) {
-  if (blobCache[fileId]) {
-    var pos = blobCacheOrder.indexOf(fileId);
-    if (pos > -1) blobCacheOrder.splice(pos, 1);
-    blobCacheOrder.push(fileId);
-    return Promise.resolve(blobCache[fileId]);
+// ── Temp Link Cache ───────────────────────────
+function getTempLink(path) {
+  var cached = linkCache[path];
+  // Reuse if valid for at least 10 more minutes
+  if (cached && cached.expiresAt > Date.now() + 10 * 60 * 1000) {
+    return Promise.resolve(cached.url);
   }
-
-  var bar = document.getElementById('preloadBar');
-  bar.style.width = '0%';
-  bar.classList.add('visible');
-
-  return fetch(DRIVE_API + '/files/' + fileId + '?alt=media', {
-    headers: { 'Authorization': 'Bearer ' + state.token }
-  }).then(function(res) {
-    if (res.status === 401) { signIn(false); throw new Error('Auth expired'); }
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    bar.style.width = '60%';
-    return res.blob();
-  }).then(function(blob) {
-    bar.style.width = '100%';
-    setTimeout(function() { bar.classList.remove('visible'); bar.style.width = '0%'; }, 300);
-    var url = URL.createObjectURL(blob);
-    if (blobCacheOrder.length >= MAX_CACHE) {
-      var oldest = blobCacheOrder.shift();
-      URL.revokeObjectURL(blobCache[oldest]);
-      delete blobCache[oldest];
-    }
-    blobCache[fileId] = url;
-    blobCacheOrder.push(fileId);
-    return url;
-  });
+  return dbxPost('/files/get_temporary_link', { path: path })
+    .then(function(res) {
+      linkCache[path] = {
+        url:       res.link,
+        expiresAt: Date.now() + 4 * 60 * 60 * 1000  // 4 hours
+      };
+      return res.link;
+    });
 }
 
-function clearBlobCache() {
-  var keys = Object.keys(blobCache);
-  for (var i = 0; i < keys.length; i++) URL.revokeObjectURL(blobCache[keys[i]]);
-  blobCache = {};
-  blobCacheOrder = [];
-}
-
-// ── Controls ──────────────────────────────────────
+// ── Controls ──────────────────────────────────
 function handleTap() {
   var ctrl = document.getElementById('controls');
   var sp   = document.getElementById('settingsPanel');
@@ -535,7 +566,7 @@ function goToFolders(e) {
   document.getElementById('slideshow').style.display = 'none';
   document.getElementById('slideA').classList.remove('active');
   document.getElementById('slideB').classList.remove('active');
-  showScreen('folderScreen');
+  loadFolders('');
 }
 
 function toggleSettings(e) {
@@ -552,21 +583,18 @@ function applyInterval() {
 function applyFit() {
   state.fit = document.getElementById('fitSel').value;
   var active = (state.activeSlide === 'A') ? 'slideA' : 'slideB';
-  var el = document.getElementById(active);
-  el.className = 'slide active' + (state.fit === 'cover' ? ' cover' : '');
+  document.getElementById(active).className =
+    'slide active' + (state.fit === 'cover' ? ' cover' : '');
 }
 
 function applyOrder() {
   state.order = document.getElementById('orderSel').value;
-  if (state.order === 'random') {
-    shuffle(state.photos);
-  } else {
-    state.photos.sort(function(a, b) { return a.name.localeCompare(b.name); });
-  }
+  if (state.order === 'random') shuffle(state.photos);
+  else state.photos.sort(function(a, b) { return a.name.localeCompare(b.name); });
   state.index = 0;
 }
 
-// ── Utilities ─────────────────────────────────────
+// ── Utilities ─────────────────────────────────
 function showScreen(id) {
   each(document.querySelectorAll('.screen'), function(s) {
     if (id === null) s.classList.add('hidden');
@@ -576,10 +604,17 @@ function showScreen(id) {
 
 function setLoading(msg) { document.getElementById('loadingMsg').textContent = msg; }
 
+function showPreloadBar(on) {
+  var bar = document.getElementById('preloadBar');
+  if (on) { bar.style.width = '70%'; bar.classList.add('visible'); }
+  else     { bar.style.width = '100%';
+    setTimeout(function() { bar.classList.remove('visible'); bar.style.width = '0%'; }, 300); }
+}
+
 function showError(msg) {
   var b = document.getElementById('errorBanner');
   b.textContent = msg; b.style.display = 'block';
-  setTimeout(function() { b.style.display = 'none'; }, 5000);
+  setTimeout(function() { b.style.display = 'none'; }, 6000);
 }
 
 function shuffle(arr) {
@@ -590,8 +625,7 @@ function shuffle(arr) {
 }
 
 function escHtml(s) {
-  return String(s)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
     .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 </script>
