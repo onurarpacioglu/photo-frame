@@ -368,6 +368,8 @@
   <div id="tapZone"></div>
   <div id="controls">
     <button class="ctrl-btn" id="btnFolders">⬅ Albums</button>
+    <button class="ctrl-btn" id="btnPrev">⏮ Prev</button>
+    <button class="ctrl-btn" id="btnPause">⏸ Pause</button>
     <button class="ctrl-btn" id="btnNext">⏭ Next</button>
     <button class="ctrl-btn" id="btnSettings">⚙ Settings</button>
   </div>
@@ -647,7 +649,8 @@ var state = {
   refreshInterval: 600000,
   selectedPaths:   [],
   browsePath:      '',
-  skipCount:       0
+  skipCount:       0,
+  paused:          false
 };
 
 var linkCache = {};
@@ -790,8 +793,25 @@ window.onload = function() {
   document.getElementById('btnDeselAll').addEventListener('click', deselectAll);
   document.getElementById('startSlideshow').addEventListener('click', startFromSelected);
 
-  document.getElementById('tapZone').addEventListener('click', handleTap);
+  var tapZone = document.getElementById('tapZone');
+  var swipeTouchX = 0, swipeTouchY = 0;
+  tapZone.addEventListener('touchstart', function(e) {
+    swipeTouchX = e.changedTouches[0].clientX;
+    swipeTouchY = e.changedTouches[0].clientY;
+  });
+  tapZone.addEventListener('touchend', function(e) {
+    var dx = e.changedTouches[0].clientX - swipeTouchX;
+    var dy = e.changedTouches[0].clientY - swipeTouchY;
+    if (Math.abs(dx) >= 40 && Math.abs(dx) > Math.abs(dy)) {
+      if (dx < 0) { prevPhoto(e); } else { skipPhoto(e); }
+    } else {
+      handleTap();
+    }
+  });
+  tapZone.addEventListener('click', function(e) { e.stopPropagation(); });
   document.getElementById('btnFolders').addEventListener('click', goToFolders);
+  document.getElementById('btnPrev').addEventListener('click', prevPhoto);
+  document.getElementById('btnPause').addEventListener('click', togglePause);
   document.getElementById('btnNext').addEventListener('click', skipPhoto);
   document.getElementById('btnSettings').addEventListener('click', toggleSettings);
 
@@ -1427,6 +1447,7 @@ function displaySlide(url) {
 
 function scheduleNext() {
   clearTimeout(state.timer);
+  if (state.paused) return;
   state.timer = setTimeout(function() {
     state.index = pickNextIndex();
     advanceTo(state.index);
@@ -1613,6 +1634,26 @@ function skipPhoto(e) {
   clearTimeout(state.timer);
   state.index = (state.index + 1) % state.photos.length;
   advanceTo(state.index);
+}
+
+function prevPhoto(e) {
+  e.stopPropagation();
+  clearTimeout(state.timer);
+  state.index = (state.index - 1 + state.photos.length) % state.photos.length;
+  advanceTo(state.index);
+}
+
+function togglePause(e) {
+  e.stopPropagation();
+  state.paused = !state.paused;
+  var btn = document.getElementById('btnPause');
+  if (state.paused) {
+    clearTimeout(state.timer);
+    btn.textContent = '▶ Play';
+  } else {
+    btn.textContent = '⏸ Pause';
+    scheduleNext();
+  }
 }
 
 function goToFolders(e) {
