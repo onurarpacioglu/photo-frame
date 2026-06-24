@@ -407,9 +407,11 @@ function renderFolders(currentPath, folders) {
   }
 
   if (!folders.length && currentPath === '') {
-    list.innerHTML += '<p style="color:#555;font-size:13px;margin-top:12px;line-height:1.7">'
-      + 'No subfolders found. Add photos to your Dropbox/Apps/Photo Frame +/ folder, '
-      + 'then tap "Use this folder" above.</p>';
+  if (!folders.length && currentPath === '') {
+    var msg = document.createElement('p');
+    msg.style.cssText = 'color:#555;font-size:13px;margin-top:12px;line-height:1.7;text-align:center';
+    msg.textContent = 'No subfolders found. Tap 'Use this folder' above to show all photos.';
+    list.appendChild(msg);
   }
 
   showScreen('folderScreen');
@@ -438,8 +440,9 @@ function selectFolder(path) {
       showScreen('folderScreen');
       return;
     }
-    state.photos = photos;
-    state.index  = 0;
+    state.photos     = photos;
+    state.index      = 0;
+    state.skipCount  = 0;
     if (state.order === 'random') shuffle(state.photos);
     linkCache = {};
     startSlideshow();
