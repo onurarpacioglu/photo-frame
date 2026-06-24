@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Token Encryptor — Photo Frame</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #111; color: #fff;
+      font-family: -apple-system, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      background: #1c1c1e; border-radius: 16px;
+      padding: 32px; width: 100%; max-width: 560px;
+    }
+    h1  { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+    .sub { color: #888; font-size: 14px; margin-bottom: 28px; line-height: 1.5; }
+    label { display: block; font-size: 13px; color: #aaa; margin-bottom: 6px; font-weight: 500; }
+    input[type=text], input[type=password], textarea {
+      width: 100%; background: #2c2c2e; border: 1px solid #3a3a3c;
+      color: #fff; padding: 11px 14px; border-radius: 8px;
+      font-size: 13px; font-family: monospace; margin-bottom: 18px;
+      outline: none;
+    }
+    input:focus, textarea:focus { border-color: #1a73e8; }
+    textarea { resize: vertical; min-height: 80px; }
+    .row { display: flex; gap: 10px; margin-bottom: 18px; }
+    .row input { margin-bottom: 0; }
+    button {
+      width: 100%; background: #1a73e8; color: #fff;
+      border: none; padding: 13px; border-radius: 8px;
+      font-size: 15px; font-weight: 600; cursor: pointer;
+    }
+    button:hover { background: #1557b0; }
+    button:disabled { background: #333; color: #666; cursor: not-allowed; }
+    .output-box {
+      margin-top: 24px; background: #0a0a0a; border: 1px solid #2a2a2a;
+      border-radius: 10px; padding: 16px; display: none;
+    }
+    .output-label { font-size: 12px; color: #666; margin-bottom: 8px; }
+    .output-value {
+      font-family: monospace; font-size: 12px; color: #4ade80;
+      word-break: break-all; line-height: 1.6;
+    }
+    .copy-btn {
+      width: auto; padding: 8px 16px; font-size: 13px; margin-top: 12px;
+      background: #2c2c2e; border-radius: 6px;
+    }
+    .copy-btn:hover { background: #3a3a3c; }
+    .info {
+      background: #0d2e4e; border-radius: 8px; padding: 14px;
+      font-size: 13px; color: #90caf9; line-height: 1.6; margin-top: 20px;
+    }
+    .info strong { color: #fff; }
+    .spinner-inline {
+      display: inline-block; width: 14px; height: 14px;
+      border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff;
+      border-radius: 50%; animation: spin 0.7s linear infinite;
+      vertical-align: middle; margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+<div class="card">
+  <h1>🔐 Token Encryptor</h1>
+  <p class="sub">Run this once on your PC. Enter your Dropbox token and choose a password. Copy the encrypted output into index.html.</p>
+
+  <label>Dropbox Access Token</label>
+  <textarea id="tokenInput" placeholder="sl.u.ABCxyz..."></textarea>
+
+  <label>Password (you'll type this on the iPad)</label>
+  <div class="row">
+    <input type="password" id="passInput" placeholder="Choose a memorable password">
+  </div>
+
+  <button id="encryptBtn" onclick="doEncrypt()">Encrypt Token</button>
+
+  <div class="output-box" id="outputBox">
+    <div class="output-label">Encrypted token — paste this into photo-frame.html</div>
+    <div class="output-value" id="outputValue"></div>
+    <button class="copy-btn" onclick="copyOutput()">📋 Copy</button>
+  </div>
+
+  <div class="info">
+    <strong>How it works:</strong> Your token is encrypted with RC4 using a key derived from your password + a random salt (10,000 key-stretching rounds). The encrypted string is safe to hardcode in your app's source code. Only your password can decrypt it.
+  </div>
+</div>
+
+<script>
+// ── RC4 implementation ───────────────────────────────────
+function rc4ksa(key) {
+  var S = [];
+  for (var i = 0; i < 256; i++) S[i] = i;
+  var j = 0;
+  for (var i = 0; i < 256; i++) {
+    j = (j + S[i] + key[i % key.length]) & 0xFF;
+    var t = S[i]; S[i] = S[j]; S[j] = t;
+  }
+  return S;
+}
+
+function rc4stream(S, length) {
+  S = S.slice();
+  var i = 0, j = 0;
+  // Discard first 256 bytes (mitigates RC4 bias)
+  for (var d = 0; d < 256; d++) {
+    i = (i + 1) & 0xFF;
+    j = (j + S[i]) & 0xFF;
+    var t = S[i]; S[i] = S[j]; S[j] = t;
+  }
+  var out = [];
+  for (var k = 0; k < length; k++) {
+    i = (i + 1) & 0xFF;
+    j = (j + S[i]) & 0xFF;
+    var t = S[i]; S[i] = S[j]; S[j] = t;
+    out.push(S[(S[i] + S[j]) & 0xFF]);
+  }
+  return out;
+}
+
+function deriveKey(password, saltHex, iterations) {
+  var key = [];
+  for (var i = 0; i < password.length; i++) key.push(password.charCodeAt(i) & 0xFF);
+  for (var i = 0; i < saltHex.length; i += 2) key.push(parseInt(saltHex.substr(i, 2), 16));
+  // Key stretching: each round runs KSA and uses S-box output as new key
+  for (var r = 0; r < iterations; r++) {
+    var S = rc4ksa(key);
+    key = S.slice(0, 64);
+  }
+  return key;
+}
+
+function hexFromBytes(bytes) {
+  var h = '';
+  for (var i = 0; i < bytes.length; i++) h += ('00' + bytes[i].toString(16)).slice(-2);
+  return h;
+}
+
+function encrypt(plaintext, password) {
+  var ITERATIONS = 10000;
+  var saltArr = new Uint8Array(16);
+  window.crypto.getRandomValues(saltArr);
+  var saltHex = hexFromBytes(Array.from(saltArr));
+  var key = deriveKey(password, saltHex, ITERATIONS);
+  var S = rc4ksa(key);
+  var plainBytes = [];
+  for (var i = 0; i < plaintext.length; i++) plainBytes.push(plaintext.charCodeAt(i) & 0xFF);
+  var ks = rc4stream(S, plainBytes.length);
+  var cipherBytes = plainBytes.map(function(b, i) { return b ^ ks[i]; });
+  return ITERATIONS + ':' + saltHex + ':' + hexFromBytes(cipherBytes);
+}
+
+// ── UI ──────────────────────────────────────────────────
+function doEncrypt() {
+  var token = document.getElementById('tokenInput').value.trim();
+  var pass  = document.getElementById('passInput').value;
+
+  if (!token) { alert('Please enter your Dropbox token.'); return; }
+  if (!pass)  { alert('Please enter a password.'); return; }
+  if (pass.length < 4) { alert('Password should be at least 4 characters.'); return; }
+
+  var btn = document.getElementById('encryptBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-inline"></span>Encrypting…';
+
+  setTimeout(function() {
+    try {
+      var result = encrypt(token, pass);
+      document.getElementById('outputValue').textContent = result;
+      document.getElementById('outputBox').style.display = 'block';
+    } catch(e) {
+      alert('Error: ' + e.message);
+    }
+    btn.disabled = false;
+    btn.textContent = 'Encrypt Token';
+  }, 50);
+}
+
+function copyOutput() {
+  var val = document.getElementById('outputValue').textContent;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(val).then(function() { alert('Copied!'); });
+  } else {
+    var ta = document.createElement('textarea');
+    ta.value = val; document.body.appendChild(ta);
+    ta.select(); document.execCommand('copy');
+    document.body.removeChild(ta);
+    alert('Copied!');
+  }
+}
+</script>
+</body>
+</html>

@@ -178,13 +178,13 @@
 </head>
 <body>
 
-<!-- Token entry -->
+<!-- Password entry -->
 <div class="screen" id="tokenScreen">
   <h1>📷 Photo Frame</h1>
-  <p>Enter your Dropbox access token to connect to your photos. It will be saved on this device.</p>
-  <input type="password" id="tokenInput" placeholder="Paste your Dropbox access token here">
-  <button class="btn-primary" id="btnConnect">Connect</button>
-  <p class="note">Your token is stored only in this browser and is never sent anywhere except Dropbox.</p>
+  <p>Enter your password to unlock your photos</p>
+  <input type="password" id="tokenInput" placeholder="Password" style="text-align:center;font-size:20px;letter-spacing:3px">
+  <button class="btn-primary" id="btnConnect">Unlock</button>
+  <p class="note" id="unlockStatus">&nbsp;</p>
 </div>
 
 <!-- Loading -->
@@ -244,9 +244,69 @@
 <div id="errorBanner"></div>
 
 <script>
+// ── PASTE YOUR ENCRYPTED TOKEN HERE ─────────────────────
+// Run token-encryptor.html on your PC to generate this value
+var ENCRYPTED_TOKEN = '10000:63861231d1d674a30b64da52e6b3797a:2a5b5d52d5835f04657ebfc6e8ab4128f4a1cb319f34224cb19cee2a0a04fa4b2d45946dc998fb1d49f83a10c0ce3d283dd3cb008a0c4c09b755eb15740d051448c98bad5a93d1f7a3971dea237ec05cfd46a3869098616b942aa0674db386a64e0508078a60698e691bd5f3e930c287841edb0a0ec0f605529d80e3153afff88279d553ece12cec0675b09a2d999a85195a742e1d4b23d4cf47bfa2febafa13d956f553848e70f3a05cd8bf4a8abb7f8d3813df16b0ae0cc46f56b77b26da6148ba3a54fc2103b392c0a57775db3dfaaed5efa9fbc147b92c693797a3a708214c3c5b5c44f5d1efb2444a9649949ecbca5144ba9735a862740582d08024fafec4c925dc944209ebb1beb78cfe1fe5f8c6c9cf7f6d90b529ea6d1252d9a0addf4cd29dc792ef36ad1d0153af996564a0857fc4dcd632a9965d3b75b254abb0eda280bc23a74a8b67423db5d9f01beb0c2fe13cf78b4efe42ff5662d3ed1c6a8e9e102438a94aa26aa3a2edf23e90b9b0746cd5b3d554ea7066bb1e23a6e526a11e3143d84ff760ad173d7fb6e960c6a44d020bba23a8f756fbc8ca0dc13e2cf7b811931905933b8380019c2a6a2ccc736da2b25e87dac307cfb4e27952ec5fe64142ffdab8dcafbecdeea4e72e1c605d728256b58b3e8807824b3a6214188ccbe8d83e730f4a878c6f0e55a564cea9a9c66f88dbf417212802200d4142a3bc0923f6bda6a799d223ed08db267a90a7a54fecefc7748dd3709193a6f96b86836aa211de217e204129c32f0b5356a218ed7235d861f7d9e1c50cd746dd5e7c8705746b8288396e0d04959a3a6960f37550273ee07c1fe16a84a4b8e76dff8104afacafa0102d6a577a8c48dbf604b2726b9a1d16afcbfa3db40ac3e761c37387548729a5db60b9d31f2cb47d4961387f7a5b0add73a3767abe6ba1fe3cdb243f1e68697c699dc2cc86274d77bd95c1584a58dc0e62e7d0d5b4f71d5f7b01efe0bde29511c84b1324ddf0cc74f1090eda9f885d13ba32b16970113650522d85095f188ab28b6040834f6badde8cbaa070a628586ee0bb05f5fe82233c5101afa0dd3c9e35afa2dfa54ec40fc5ec87aea62dbbc59e7897b41d920fe8805de42ec68b1c26dabbf12578ba23905e4fbf7456d36ab98598596ac61b4c1e4a27ca2bceb605aebae0a974f7a467f2f9316795d22cffd38b9167470720e455532fc28ba81706d3c62f697bd30db00fa574afb0f30d619bc0bdca6f26c291aeedc1128e89f5a5231266c3fc3df18db6e0899983c80cbece923e944bcf28da60dc210645780d21cba35322f9ddf333db5aa15cecd8f3de5d29cae566cc886af98614bbd772ae8f2498da39bfc9a511d494404eb99ba630d3fa7c07ababd82507d25381fdd2c838f3ff46fd3df57417ac43c3f1299491d7d3b4858e5d5add1a01ec12d36c2039c43c3d9f53a23d13df4cb0856608aa9186d1695b37eb8b01ca19c0ad1c7bbfb74feb4fb2ddfa80f3e7615aa51f32090a39e6a95fc8588b057f5f150ad6cee23b13c071a04ad86a059dea16ff366f7648394bc48ffb4fb889df48d675a9924ca3c073d54ef1df0b98826490cd3a373db27e7bd00a2bc439e961296f7fe22df0ed85090c66d39c429fd6acdb8e35c19c836a77771f3227e8cf1ca64427ba87f3d2fefbba2facf5c912a527e9e5b3fb3c984d7c3250715c73e4e3c181ecae86b45ebeec8a8c684f5c9dd066ea74dd0709c620d33c29a1a60e62ac01fe914ec108015035301b12c06658cdf31c8a73e3b0278f1a51757dd9df127446503013a432367db416bc36b19dbc43a6541f49f9467891cd2c70039f33eb02912a24b8cb7fcce0f79c220defbc08d2e3b786782df87dfabca41b79dc014e2390b3ad5f1f351469d7fed8f7688060';
+// ─────────────────────────────────────────────────────────
+
 var DBX_API     = 'https://api.dropboxapi.com/2';
 var IMAGE_EXTS  = ['jpg','jpeg','png','gif','webp','bmp','tiff','tif','heic'];
-var TOKEN_KEY   = 'pf_dbx_token';
+
+// ── RC4 decryption (same algo as token-encryptor.html) ───
+function rc4ksa(key) {
+  var S = [];
+  for (var i = 0; i < 256; i++) S[i] = i;
+  var j = 0;
+  for (var i = 0; i < 256; i++) {
+    j = (j + S[i] + key[i % key.length]) & 0xFF;
+    var t = S[i]; S[i] = S[j]; S[j] = t;
+  }
+  return S;
+}
+
+function rc4stream(S, length) {
+  S = S.slice();
+  var i = 0, j = 0;
+  for (var d = 0; d < 256; d++) {
+    i = (i + 1) & 0xFF; j = (j + S[i]) & 0xFF;
+    var t = S[i]; S[i] = S[j]; S[j] = t;
+  }
+  var out = [];
+  for (var k = 0; k < length; k++) {
+    i = (i + 1) & 0xFF; j = (j + S[i]) & 0xFF;
+    var t = S[i]; S[i] = S[j]; S[j] = t;
+    out.push(S[(S[i] + S[j]) & 0xFF]);
+  }
+  return out;
+}
+
+function deriveKey(password, saltHex, iterations) {
+  var key = [];
+  for (var i = 0; i < password.length; i++) key.push(password.charCodeAt(i) & 0xFF);
+  for (var i = 0; i < saltHex.length; i += 2) key.push(parseInt(saltHex.substr(i, 2), 16));
+  for (var r = 0; r < iterations; r++) {
+    var S = rc4ksa(key);
+    key = S.slice(0, 64);
+  }
+  return key;
+}
+
+function decryptToken(encryptedData, password) {
+  var parts = encryptedData.split(':');
+  if (parts.length !== 3) return null;
+  var iterations  = parseInt(parts[0]);
+  var saltHex     = parts[1];
+  var cipherHex   = parts[2];
+  var key         = deriveKey(password, saltHex, iterations);
+  var S           = rc4ksa(key);
+  var cipherBytes = [];
+  for (var i = 0; i < cipherHex.length; i += 2) cipherBytes.push(parseInt(cipherHex.substr(i, 2), 16));
+  var ks          = rc4stream(S, cipherBytes.length);
+  var plainBytes  = cipherBytes.map(function(b, i) { return b ^ ks[i]; });
+  var result = '';
+  for (var i = 0; i < plainBytes.length; i++) result += String.fromCharCode(plainBytes[i]);
+  return result;
+}
 
 // State
 var state = {
@@ -284,32 +344,44 @@ window.onload = function() {
   document.getElementById('orderSel').addEventListener('change', applyOrder);
   document.getElementById('fitSel').addEventListener('change', applyFit);
 
-  // Restore saved token
-  var saved = null;
-  try { saved = localStorage.getItem(TOKEN_KEY); } catch(e) {}
-  if (saved) {
-    state.token = saved;
-    showScreen('loadingScreen');
-    loadFolders('');
-  } else {
-    showScreen('tokenScreen');
-  }
+  showScreen('tokenScreen');
 };
 
 // ── Token ────────────────────────────────────
 function onConnect() {
-  var val = document.getElementById('tokenInput').value.trim();
-  if (!val) { showError('Please paste your Dropbox token.'); return; }
-  state.token = val;
-  try { localStorage.setItem(TOKEN_KEY, val); } catch(e) {}
-  showScreen('loadingScreen');
-  loadFolders('');
+  var pass = document.getElementById('tokenInput').value;
+  if (!pass) { showError('Please enter your password.'); return; }
+
+  if (ENCRYPTED_TOKEN === 'PASTE_ENCRYPTED_TOKEN_HERE') {
+    showError('No encrypted token set. Run token-encryptor.html first.');
+    return;
+  }
+
+  var status = document.getElementById('unlockStatus');
+  var btn    = document.getElementById('btnConnect');
+  status.textContent = 'Unlocking…';
+  btn.disabled = true;
+
+  // Defer to allow UI to update before heavy computation
+  setTimeout(function() {
+    var token = decryptToken(ENCRYPTED_TOKEN, pass);
+    btn.disabled = false;
+    if (!token || token.indexOf('sl.') !== 0) {
+      status.textContent = 'Wrong password. Try again.';
+      document.getElementById('tokenInput').value = '';
+      return;
+    }
+    status.textContent = ' ';
+    state.token = token;
+    showScreen('loadingScreen');
+    loadFolders('');
+  }, 50);
 }
 
 function clearToken() {
   state.token = null;
-  try { localStorage.removeItem(TOKEN_KEY); } catch(e) {}
   document.getElementById('tokenInput').value = '';
+  document.getElementById('unlockStatus').textContent = ' ';
   showScreen('tokenScreen');
 }
 
