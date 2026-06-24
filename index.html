@@ -656,6 +656,7 @@ var state = {
 var linkCache = {};
 var blobCache = {};           // path -> objectUrl (preloaded next photos, in memory)
 var slideBlobUrls = { A: null, B: null }; // blob URLs currently held by slide elements
+var slidePhotoPaths = { A: null, B: null }; // which photo path each slide is currently showing
 
 // ── Utilities ────────────────────────────────────────────
 function each(list, fn) { for (var i = 0; i < list.length; i++) fn(list[i]); }
@@ -1018,6 +1019,7 @@ function clearToken() {
   blobCache = {};
   if (slideBlobUrls.A) { URL.revokeObjectURL(slideBlobUrls.A); slideBlobUrls.A = null; }
   if (slideBlobUrls.B) { URL.revokeObjectURL(slideBlobUrls.B); slideBlobUrls.B = null; }
+  slidePhotoPaths.A = null; slidePhotoPaths.B = null;
   try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
   document.getElementById('slideshow').style.display = 'none';
   document.getElementById('slideA').classList.remove('active');
@@ -1384,11 +1386,27 @@ function advanceTo(idx) {
   var photo = state.photos[idx];
   document.getElementById('photoCounter').textContent = (idx + 1) + ' / ' + state.photos.length;
 
+  // If the inactive slide already holds this photo, just swap — no reload needed
+  var inactiveKey = state.activeSlide === 'A' ? 'B' : 'A';
+  if (slidePhotoPaths[inactiveKey] === photo.path) {
+    state.skipCount = 0;
+    var inactiveSlide = document.getElementById('slide' + inactiveKey);
+    var activeSlide   = document.getElementById('slide' + state.activeSlide);
+    inactiveSlide.classList.add('active');
+    activeSlide.classList.remove('active');
+    state.activeSlide = inactiveKey;
+    updatePhotoInfo(photo);
+    recordView(photo.path);
+    scheduleNext();
+    preloadAhead(idx, 2);
+    return;
+  }
+
   var blobUrl = blobCache[photo.path];
   if (blobUrl) {
     delete blobCache[photo.path];
     state.skipCount = 0;
-    displaySlide(blobUrl);
+    displaySlide(photo.path, blobUrl);
     updatePhotoInfo(photo);
     recordView(photo.path);
     preloadAhead(idx, 2);
@@ -1399,7 +1417,7 @@ function advanceTo(idx) {
   getTempLink(photo.path).then(function(url) {
     state.skipCount = 0;
     showPreloadBar(false);
-    displaySlide(url);
+    displaySlide(photo.path, url);
     updatePhotoInfo(photo);
     recordView(photo.path);
     preloadAhead(idx, 2);
@@ -1420,7 +1438,7 @@ function advanceTo(idx) {
   });
 }
 
-function displaySlide(url) {
+function displaySlide(path, url) {
   var nextSlideId  = state.activeSlide === 'A' ? 'slideB' : 'slideA';
   var currSlideId  = state.activeSlide === 'A' ? 'slideA' : 'slideB';
   var nextImgId    = state.activeSlide === 'A' ? 'imgB'   : 'imgA';
@@ -1435,6 +1453,7 @@ function displaySlide(url) {
     URL.revokeObjectURL(slideBlobUrls[nextSlideKey]);
   }
   slideBlobUrls[nextSlideKey] = (url.indexOf('blob:') === 0) ? url : null;
+  slidePhotoPaths[nextSlideKey] = path;
 
   nextSlide.className = 'slide' + (state.fit === 'cover' ? ' cover' : '');
   nextImg.onload = function() {
