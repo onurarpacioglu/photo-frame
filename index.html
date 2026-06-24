@@ -611,6 +611,9 @@ window.onload = function() {
     if (parent !== null) loadFolders(parent);
   });
   document.getElementById('btnCheckPattern').addEventListener('click', applyPattern);
+  document.getElementById('patternInput').addEventListener('keydown', function(e) {
+    if (e.keyCode === 13) applyPattern();
+  });
   document.getElementById('btnSelAll').addEventListener('click', selectAllVisible);
   document.getElementById('btnDeselAll').addEventListener('click', deselectAll);
   document.getElementById('startSlideshow').addEventListener('click', startFromSelected);
