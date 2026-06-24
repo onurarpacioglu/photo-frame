@@ -258,7 +258,8 @@ var state = {
   ctrlTimer:   null,
   interval:    10000,
   fit:         'contain',
-  order:       'random'
+  order:       'random',
+  skipCount:   0     // consecutive failures guard
 };
 
 // Temporary link cache: path -> {url, expiresAt}
@@ -471,12 +472,23 @@ function advanceTo(idx) {
 
   showPreloadBar(true);
   getTempLink(photo.path).then(function(url) {
+    state.skipCount = 0;
     showPreloadBar(false);
     displaySlide(url);
     preloadAhead(idx, 2);
   }).catch(function(e) {
     showPreloadBar(false);
+    state.skipCount++;
     console.warn('Skip ' + photo.name + ': ' + e.message);
+    // If we've failed on every single photo, stop and show error
+    if (state.skipCount >= state.photos.length) {
+      state.skipCount = 0;
+      clearTimeout(state.timer);
+      document.getElementById('slideshow').style.display = 'none';
+      showError('Could not load any photos. Your token may be missing the "files.content.read" permission. Please regenerate your token.');
+      setTimeout(function() { clearToken(); }, 4000);
+      return;
+    }
     state.index = (idx + 1) % state.photos.length;
     advanceTo(state.index);
   });
