@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Photo Frame">
+  <title>Photo Frame</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #000;
+      color: #fff;
+      font-family: -apple-system, Helvetica, Arial, sans-serif;
+      height: 100vh;
+      overflow: hidden;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* ── Screens ─────────────────────────────── */
+    .screen {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      text-align: center;
+      transition: opacity 0.4s;
+      z-index: 10;
+    }
+    .screen.hidden { opacity: 0; pointer-events: none; }
+
+    /* ── Login Screen ────────────────────────── */
+    #loginScreen h1 { font-size: 30px; font-weight: 700; margin-bottom: 8px; }
+    #loginScreen p  { color: #888; font-size: 16px; margin-bottom: 36px; max-width: 320px; line-height: 1.5; }
+    #loginScreen .sub { font-size: 12px; color: #555; margin-top: 20px; max-width: 300px; line-height: 1.5; }
+
+    /* ── Album Screen ────────────────────────── */
+    #albumScreen {
+      justify-content: flex-start;
+      padding-top: 40px;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    #albumScreen h2 { font-size: 22px; font-weight: 600; margin-bottom: 20px; }
+    #albumGrid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      width: 100%;
+      max-width: 680px;
+      padding-bottom: 40px;
+    }
+    .album-card {
+      cursor: pointer;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #1c1c1e;
+      aspect-ratio: 1;
+      position: relative;
+      -webkit-tap-highlight-color: rgba(255,255,255,0.1);
+    }
+    .album-card:active { opacity: 0.7; }
+    .album-card img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .album-card .no-cover {
+      width: 100%; height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 40px;
+      background: linear-gradient(135deg, #1a73e8, #0d47a1);
+    }
+    .album-label {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      background: linear-gradient(transparent, rgba(0,0,0,0.85));
+      padding: 20px 8px 8px;
+    }
+    .album-label .name  { font-size: 12px; font-weight: 600; line-height: 1.3; }
+    .album-label .count { font-size: 10px; color: #aaa; margin-top: 2px; }
+
+    /* ── Loading Screen ──────────────────────── */
+    #loadingScreen p { color: #888; font-size: 15px; margin-top: 12px; }
+    .spinner {
+      width: 44px; height: 44px;
+      border: 3px solid #333;
+      border-top-color: #1a73e8;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Slideshow ───────────────────────────── */
+    #slideshow {
+      position: fixed;
+      inset: 0;
+      background: #000;
+      display: none;
+      z-index: 5;
+    }
+    .slide {
+      position: absolute;
+      inset: 0;
+      background-size: contain;
+      background-position: center center;
+      background-repeat: no-repeat;
+      opacity: 0;
+      transition: opacity 1.5s ease-in-out;
+    }
+    .slide.active { opacity: 1; }
+
+    /* ── Slide Controls ──────────────────────── */
+    #tapZone {
+      position: absolute;
+      inset: 0;
+      z-index: 20;
+    }
+    #controls {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      background: linear-gradient(transparent, rgba(0,0,0,0.75));
+      padding: 32px 20px 20px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 12px;
+      z-index: 21;
+      opacity: 0;
+      transition: opacity 0.35s;
+      pointer-events: none;
+    }
+    #controls.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .ctrl-btn {
+      background: rgba(255,255,255,0.15);
+      color: #fff;
+      border: none;
+      padding: 9px 18px;
+      border-radius: 20px;
+      font-size: 14px;
+      cursor: pointer;
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+    }
+    .ctrl-btn:active { background: rgba(255,255,255,0.3); }
+
+    /* ── Settings Panel ──────────────────────── */
+    #settingsPanel {
+      position: absolute;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(28,28,30,0.97);
+      border-radius: 14px;
+      padding: 18px 20px;
+      width: 270px;
+      z-index: 30;
+      display: none;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+    }
+    #settingsPanel.visible { display: block; }
+    #settingsPanel h3 { font-size: 15px; font-weight: 600; margin-bottom: 14px; color: #eee; }
+    .s-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      font-size: 14px;
+      color: #ccc;
+    }
+    .s-row select {
+      background: #3a3a3c;
+      border: none;
+      color: #fff;
+      padding: 5px 10px;
+      border-radius: 6px;
+      font-size: 13px;
+      -webkit-appearance: none;
+      appearance: none;
+      padding-right: 20px;
+    }
+
+    /* ── Photo counter ───────────────────────── */
+    #photoCounter {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      font-size: 12px;
+      color: rgba(255,255,255,0.4);
+      z-index: 22;
+      opacity: 0;
+      transition: opacity 0.35s;
+    }
+    #controls.visible ~ #photoCounter { opacity: 1; }
+
+    /* ── Error banner ────────────────────────── */
+    #errorBanner {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #c62828;
+      color: #fff;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      z-index: 100;
+      display: none;
+      max-width: 90vw;
+      text-align: center;
+    }
+
+    /* ── Buttons ─────────────────────────────── */
+    .btn-google {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: #fff;
+      color: #3c4043;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    }
+    .btn-google:active { opacity: 0.85; }
+  </style>
+</head>
+<body>
+
+<!-- ── Login ──────────────────────────────────── -->
+<div class="screen" id="loginScreen">
+  <h1>📷 Photo Frame</h1>
+  <p>Show your Google Photos as a beautiful full-screen slideshow on this device</p>
+  <button class="btn-google" onclick="signIn()">
+    <svg width="20" height="20" viewBox="0 0 24 24">
+      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
+      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+    </svg>
+    Sign in with Google
+  </button>
+  <p class="sub">Your photos stay private — the app only requests read-only access to your library</p>
+</div>
+
+<!-- ── Loading ────────────────────────────────── -->
+<div class="screen hidden" id="loadingScreen">
+  <div class="spinner"></div>
+  <p id="loadingMsg">Loading...</p>
+</div>
+
+<!-- ── Albums ─────────────────────────────────── -->
+<div class="screen hidden" id="albumScreen">
+  <h2>Choose an Album</h2>
+  <div id="albumGrid"></div>
+</div>
+
+<!-- ── Slideshow ──────────────────────────────── -->
+<div id="slideshow">
+  <div id="slideA" class="slide"></div>
+  <div id="slideB" class="slide"></div>
+
+  <div id="tapZone" onclick="handleTap()"></div>
+
+  <div id="controls">
+    <button class="ctrl-btn" onclick="goToAlbums(event)">⬅ Albums</button>
+    <button class="ctrl-btn" onclick="skipPhoto(event)">⏭ Next</button>
+    <button class="ctrl-btn" onclick="openSettings(event)">⚙ Settings</button>
+  </div>
+
+  <div id="settingsPanel">
+    <h3>⚙ Settings</h3>
+    <div class="s-row">
+      <span>Interval</span>
+      <select id="intervalSel" onchange="applyInterval()">
+        <option value="5000">5 sec</option>
+        <option value="10000" selected>10 sec</option>
+        <option value="30000">30 sec</option>
+        <option value="60000">1 min</option>
+        <option value="300000">5 min</option>
+      </select>
+    </div>
+    <div class="s-row">
+      <span>Order</span>
+      <select id="orderSel" onchange="applyOrder()">
+        <option value="random" selected>Shuffle</option>
+        <option value="sequential">Sequential</option>
+      </select>
+    </div>
+    <div class="s-row">
+      <span>Fit</span>
+      <select id="fitSel" onchange="applyFit()">
+        <option value="contain" selected>Fit (letterbox)</option>
+        <option value="cover">Fill (crop)</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="photoCounter"></div>
+</div>
+
+<!-- ── Error Banner ───────────────────────────── -->
+<div id="errorBanner"></div>
+
+<script>
+// ── Configuration ─────────────────────────────
+const CLIENT_ID   = '194507721407-jfqcp2njidut5bp5v75rlbi8u9d32nnj.apps.googleusercontent.com';
+const SCOPE       = 'https://www.googleapis.com/auth/photoslibrary.readonly';
+const PHOTOS_API  = 'https://photoslibrary.googleapis.com/v1';
+
+// ── State ──────────────────────────────────────
+var state = {
+  token:       null,
+  tokenExpiry: 0,
+  photos:      [],
+  index:       0,
+  activeSlide: 'A',
+  timer:       null,
+  ctrlTimer:   null,
+  interval:    10000,
+  fit:         'contain',
+  order:       'random'
+};
+
+// ── Boot ───────────────────────────────────────
+window.onload = function() {
+  var hash = window.location.hash;
+  if (hash && hash.indexOf('access_token') !== -1) {
+    var p = new URLSearchParams(hash.substring(1));
+    state.token       = p.get('access_token');
+    state.tokenExpiry = Date.now() + (parseInt(p.get('expires_in') || '3600') - 120) * 1000;
+    history.replaceState(null, '', window.location.pathname);
+    scheduleTokenRefresh();
+    showScreen('loadingScreen');
+    loadAlbums();
+  } else {
+    showScreen('loginScreen');
+  }
+};
+
+// ── Auth ───────────────────────────────────────
+function signIn(silent) {
+  var redirect = window.location.origin + window.location.pathname;
+  var p = new URLSearchParams({
+    client_id:     CLIENT_ID,
+    redirect_uri:  redirect,
+    response_type: 'token',
+    scope:         SCOPE,
+    prompt:        silent ? 'none' : 'select_account'
+  });
+  window.location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + p.toString();
+}
+
+function scheduleTokenRefresh() {
+  var ms = state.tokenExpiry - Date.now();
+  if (ms > 0) setTimeout(function() { signIn(true); }, ms);
+}
+
+// ── Albums ─────────────────────────────────────
+async function loadAlbums() {
+  setLoading('Loading your albums…');
+  try {
+    var albums = [];
+    var pageToken = null;
+    do {
+      var url = PHOTOS_API + '/albums?pageSize=50';
+      if (pageToken) url += '&pageToken=' + encodeURIComponent(pageToken);
+      var res = await apiGet(url);
+      if (res.albums) albums = albums.concat(res.albums);
+      pageToken = res.nextPageToken || null;
+    } while (pageToken);
+
+    renderAlbums(albums);
+  } catch(e) {
+    showError('Could not load albums. Tap to sign in again.');
+    setTimeout(function() { showScreen('loginScreen'); }, 3000);
+  }
+}
+
+function renderAlbums(albums) {
+  var grid = document.getElementById('albumGrid');
+  grid.innerHTML = '';
+
+  // "All Photos" tile
+  grid.appendChild(makeAlbumCard({ id: '__all__', title: 'All Photos', mediaItemsCount: 'Full library', coverPhotoBaseUrl: null }));
+
+  albums.forEach(function(a) { grid.appendChild(makeAlbumCard(a)); });
+  showScreen('albumScreen');
+}
+
+function makeAlbumCard(album) {
+  var card = document.createElement('div');
+  card.className = 'album-card';
+  card.onclick = function() { selectAlbum(album); };
+
+  if (album.coverPhotoBaseUrl) {
+    var img = document.createElement('img');
+    img.src = album.coverPhotoBaseUrl + '=w240-h240-c';
+    img.alt = album.title;
+    card.appendChild(img);
+  } else {
+    var nc = document.createElement('div');
+    nc.className = 'no-cover';
+    nc.textContent = '🌟';
+    card.appendChild(nc);
+  }
+
+  var lbl = document.createElement('div');
+  lbl.className = 'album-label';
+  lbl.innerHTML = '<div class="name">' + escHtml(album.title) + '</div>'
+    + '<div class="count">' + (album.mediaItemsCount || '') + ' items</div>';
+  card.appendChild(lbl);
+  return card;
+}
+
+// ── Load Photos ────────────────────────────────
+async function selectAlbum(album) {
+  showScreen('loadingScreen');
+  setLoading('Loading photos…');
+  try {
+    var items = [];
+    var pageToken = null;
+    do {
+      var res;
+      if (album.id === '__all__') {
+        var url = PHOTOS_API + '/mediaItems?pageSize=100';
+        if (pageToken) url += '&pageToken=' + encodeURIComponent(pageToken);
+        res = await apiGet(url);
+      } else {
+        var body = { albumId: album.id, pageSize: 100 };
+        if (pageToken) body.pageToken = pageToken;
+        res = await apiPost(PHOTOS_API + '/mediaItems:search', body);
+      }
+      if (res.mediaItems) {
+        var photos = res.mediaItems.filter(function(i) {
+          return i.mediaMetadata && i.mediaMetadata.photo;
+        });
+        items = items.concat(photos);
+      }
+      pageToken = res.nextPageToken || null;
+      setLoading('Loaded ' + items.length + ' photos…');
+    } while (pageToken && items.length < 600);
+
+    if (!items.length) {
+      showError('No photos found in this album.');
+      setTimeout(function() { showScreen('albumScreen'); }, 2500);
+      return;
+    }
+
+    state.photos = items;
+    state.index  = 0;
+    if (state.order === 'random') shuffle(state.photos);
+    startSlideshow();
+  } catch(e) {
+    showError('Error loading photos: ' + (e.message || e));
+    setTimeout(function() { showScreen('albumScreen'); }, 3000);
+  }
+}
+
+// ── Slideshow ──────────────────────────────────
+function startSlideshow() {
+  document.getElementById('slideshow').style.display = 'block';
+  showScreen(null);
+  showSlide(state.index);
+  scheduleNext();
+}
+
+function showSlide(idx) {
+  var photo = state.photos[idx];
+  var w = Math.round(window.screen.width  * (window.devicePixelRatio || 1));
+  var h = Math.round(window.screen.height * (window.devicePixelRatio || 1));
+  var url = photo.baseUrl + '=w' + w + '-h' + h;
+
+  var nextId  = state.activeSlide === 'A' ? 'slideB' : 'slideA';
+  var currId  = state.activeSlide === 'A' ? 'slideA' : 'slideB';
+  var nextEl  = document.getElementById(nextId);
+  var currEl  = document.getElementById(currId);
+
+  nextEl.style.backgroundImage = 'url(' + url + ')';
+  nextEl.style.backgroundSize  = state.fit;
+
+  var img = new Image();
+  img.onload = function() {
+    nextEl.classList.add('active');
+    currEl.classList.remove('active');
+    state.activeSlide = nextId === 'slideA' ? 'A' : 'B';
+  };
+  img.onerror = function() {
+    // Skip broken image
+    state.index = (state.index + 1) % state.photos.length;
+    showSlide(state.index);
+  };
+  img.src = url;
+
+  document.getElementById('photoCounter').textContent =
+    (idx + 1) + ' / ' + state.photos.length;
+}
+
+function scheduleNext() {
+  clearTimeout(state.timer);
+  state.timer = setTimeout(function() {
+    state.index = (state.index + 1) % state.photos.length;
+    showSlide(state.index);
+    scheduleNext();
+  }, state.interval);
+}
+
+// ── Tap / Controls ─────────────────────────────
+function handleTap() {
+  var ctrl = document.getElementById('controls');
+  var sp   = document.getElementById('settingsPanel');
+  sp.classList.remove('visible');
+
+  if (ctrl.classList.contains('visible')) {
+    ctrl.classList.remove('visible');
+  } else {
+    ctrl.classList.add('visible');
+    clearTimeout(state.ctrlTimer);
+    state.ctrlTimer = setTimeout(function() {
+      ctrl.classList.remove('visible');
+      sp.classList.remove('visible');
+    }, 5000);
+  }
+}
+
+function skipPhoto(e) {
+  e.stopPropagation();
+  clearTimeout(state.timer);
+  state.index = (state.index + 1) % state.photos.length;
+  showSlide(state.index);
+  scheduleNext();
+}
+
+function goToAlbums(e) {
+  e.stopPropagation();
+  clearTimeout(state.timer);
+  document.getElementById('slideshow').style.display = 'none';
+  document.getElementById('slideA').classList.remove('active');
+  document.getElementById('slideB').classList.remove('active');
+  showScreen('albumScreen');
+}
+
+function openSettings(e) {
+  e.stopPropagation();
+  document.getElementById('settingsPanel').classList.toggle('visible');
+}
+
+// ── Settings ───────────────────────────────────
+function applyInterval() {
+  state.interval = parseInt(document.getElementById('intervalSel').value);
+  clearTimeout(state.timer);
+  scheduleNext();
+}
+
+function applyFit() {
+  state.fit = document.getElementById('fitSel').value;
+  document.querySelectorAll('.slide').forEach(function(s) {
+    s.style.backgroundSize = state.fit;
+  });
+}
+
+function applyOrder() {
+  state.order = document.getElementById('orderSel').value;
+  if (state.order === 'random') shuffle(state.photos);
+  else state.photos.sort(function(a, b) {
+    return (a.mediaMetadata.creationTime > b.mediaMetadata.creationTime) ? 1 : -1;
+  });
+  state.index = 0;
+}
+
+// ── Utilities ──────────────────────────────────
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(function(s) {
+    if (id === null) s.classList.add('hidden');
+    else s.classList.toggle('hidden', s.id !== id);
+  });
+}
+
+function setLoading(msg) {
+  document.getElementById('loadingMsg').textContent = msg;
+}
+
+function showError(msg) {
+  var b = document.getElementById('errorBanner');
+  b.textContent = msg;
+  b.style.display = 'block';
+  setTimeout(function() { b.style.display = 'none'; }, 4000);
+}
+
+async function apiGet(url) {
+  var res = await fetch(url, {
+    headers: { Authorization: 'Bearer ' + state.token }
+  });
+  if (res.status === 401) { signIn(false); throw new Error('Auth expired'); }
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return res.json();
+}
+
+async function apiPost(url, body) {
+  var res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization:  'Bearer ' + state.token,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  });
+  if (res.status === 401) { signIn(false); throw new Error('Auth expired'); }
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return res.json();
+}
+
+function shuffle(arr) {
+  for (var i = arr.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+  }
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>
