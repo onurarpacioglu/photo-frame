@@ -1346,7 +1346,6 @@ function startSlideshow() {
   startClock();
   startAutoRefresh();
   advanceTo(state.index);
-  scheduleNext();
 }
 
 function advanceTo(idx) {
@@ -1391,6 +1390,7 @@ function displaySlide(url) {
     nextSlide.classList.add('active');
     currSlide.classList.remove('active');
     state.activeSlide = (nextSlideId === 'slideA') ? 'A' : 'B';
+    scheduleNext();
   };
   nextImg.onerror = function() {
     delete linkCache[state.photos[state.index].path];
@@ -1404,7 +1404,6 @@ function scheduleNext() {
   state.timer = setTimeout(function() {
     state.index = pickNextIndex();
     advanceTo(state.index);
-    scheduleNext();
   }, state.interval);
 }
 
@@ -1460,9 +1459,12 @@ function calendarDayDiff(d1, d2) {
 function preloadAhead(fromIdx, count) {
   for (var i = 1; i <= count; i++) {
     (function(p) {
-      if (!linkCache[p] || linkCache[p].expiresAt < Date.now() + 60000) {
-        getTempLink(p).catch(function() {});
-      }
+      var needsLink = !linkCache[p] || linkCache[p].expiresAt < Date.now() + 60000;
+      var promise = needsLink ? getTempLink(p) : Promise.resolve(linkCache[p].url);
+      promise.then(function(url) {
+        var img = new Image();
+        img.src = url;
+      }).catch(function() {});
     })(state.photos[(fromIdx + i) % state.photos.length].path);
   }
 }
@@ -1565,7 +1567,6 @@ function skipPhoto(e) {
   clearTimeout(state.timer);
   state.index = (state.index + 1) % state.photos.length;
   advanceTo(state.index);
-  scheduleNext();
 }
 
 function goToFolders(e) {
