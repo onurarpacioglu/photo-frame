@@ -407,10 +407,9 @@ function renderFolders(currentPath, folders) {
   }
 
   if (!folders.length && currentPath === '') {
-  if (!folders.length && currentPath === '') {
     var msg = document.createElement('p');
     msg.style.cssText = 'color:#555;font-size:13px;margin-top:12px;line-height:1.7;text-align:center';
-    msg.textContent = 'No subfolders found. Tap 'Use this folder' above to show all photos.';
+    msg.textContent = 'No subfolders found. Tap "Use this folder" above to show all photos.';
     list.appendChild(msg);
   }
 
