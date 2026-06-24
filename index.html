@@ -651,6 +651,8 @@ var state = {
 };
 
 var linkCache = {};
+var blobCache = {};           // path -> objectUrl (preloaded next photos, in memory)
+var slideBlobUrls = { A: null, B: null }; // blob URLs currently held by slide elements
 
 // ── Utilities ────────────────────────────────────────────
 function each(list, fn) { for (var i = 0; i < list.length; i++) fn(list[i]); }
@@ -986,6 +988,11 @@ function clearToken() {
   clearInterval(state.refreshTimer);
   clearInterval(state.clockTimer);
   clearInterval(state.tokenRefreshTimer);
+  var blobKeys = Object.keys(blobCache);
+  for (var i = 0; i < blobKeys.length; i++) { URL.revokeObjectURL(blobCache[blobKeys[i]]); }
+  blobCache = {};
+  if (slideBlobUrls.A) { URL.revokeObjectURL(slideBlobUrls.A); slideBlobUrls.A = null; }
+  if (slideBlobUrls.B) { URL.revokeObjectURL(slideBlobUrls.B); slideBlobUrls.B = null; }
   try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
   document.getElementById('slideshow').style.display = 'none';
   document.getElementById('slideA').classList.remove('active');
@@ -1351,6 +1358,18 @@ function startSlideshow() {
 function advanceTo(idx) {
   var photo = state.photos[idx];
   document.getElementById('photoCounter').textContent = (idx + 1) + ' / ' + state.photos.length;
+
+  var blobUrl = blobCache[photo.path];
+  if (blobUrl) {
+    delete blobCache[photo.path];
+    state.skipCount = 0;
+    displaySlide(blobUrl);
+    updatePhotoInfo(photo);
+    recordView(photo.path);
+    preloadAhead(idx, 2);
+    return;
+  }
+
   showPreloadBar(true);
   getTempLink(photo.path).then(function(url) {
     state.skipCount = 0;
@@ -1377,13 +1396,20 @@ function advanceTo(idx) {
 }
 
 function displaySlide(url) {
-  var nextSlideId = state.activeSlide === 'A' ? 'slideB' : 'slideA';
-  var currSlideId = state.activeSlide === 'A' ? 'slideA' : 'slideB';
-  var nextImgId   = state.activeSlide === 'A' ? 'imgB'   : 'imgA';
+  var nextSlideId  = state.activeSlide === 'A' ? 'slideB' : 'slideA';
+  var currSlideId  = state.activeSlide === 'A' ? 'slideA' : 'slideB';
+  var nextImgId    = state.activeSlide === 'A' ? 'imgB'   : 'imgA';
+  var nextSlideKey = state.activeSlide === 'A' ? 'B' : 'A';
 
   var nextSlide = document.getElementById(nextSlideId);
   var currSlide = document.getElementById(currSlideId);
   var nextImg   = document.getElementById(nextImgId);
+
+  // Revoke the old blob held by this slide element (it's hidden and being replaced)
+  if (slideBlobUrls[nextSlideKey]) {
+    URL.revokeObjectURL(slideBlobUrls[nextSlideKey]);
+  }
+  slideBlobUrls[nextSlideKey] = (url.indexOf('blob:') === 0) ? url : null;
 
   nextSlide.className = 'slide' + (state.fit === 'cover' ? ' cover' : '');
   nextImg.onload = function() {
@@ -1458,15 +1484,35 @@ function calendarDayDiff(d1, d2) {
 
 function preloadAhead(fromIdx, count) {
   for (var i = 1; i <= count; i++) {
-    (function(p) {
-      var needsLink = !linkCache[p] || linkCache[p].expiresAt < Date.now() + 60000;
-      var promise = needsLink ? getTempLink(p) : Promise.resolve(linkCache[p].url);
-      promise.then(function(url) {
-        var img = new Image();
-        img.src = url;
+    (function(path) {
+      if (blobCache[path]) return;
+      var needsLink = !linkCache[path] || linkCache[path].expiresAt < Date.now() + 60000;
+      var linkPromise = needsLink ? getTempLink(path) : Promise.resolve(linkCache[path].url);
+      linkPromise.then(function(url) {
+        return fetchBlob(url);
+      }).then(function(blob) {
+        if (!blobCache[path]) {
+          blobCache[path] = URL.createObjectURL(blob);
+        }
       }).catch(function() {});
     })(state.photos[(fromIdx + i) % state.photos.length].path);
   }
+}
+
+function fetchBlob(url) {
+  return new Promise(function(resolve, reject) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', url, true);
+    xhr.responseType = 'blob';
+    xhr.timeout = 60000;
+    xhr.onload = function() {
+      if (xhr.status === 200) { resolve(xhr.response); }
+      else { reject(new Error('HTTP ' + xhr.status)); }
+    };
+    xhr.onerror   = function() { reject(new Error('Network error')); };
+    xhr.ontimeout = function() { reject(new Error('Timeout')); };
+    xhr.send();
+  });
 }
 
 function getTempLink(path) {
