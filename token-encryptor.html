@@ -63,15 +63,43 @@
       vertical-align: middle; margin-right: 6px;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+    .section-divider {
+      border-top: 1px solid #2c2c2e; margin: 24px 0 20px;
+    }
+    .step-label {
+      font-size: 11px; color: #555; text-transform: uppercase;
+      letter-spacing: 0.6px; margin-bottom: 10px;
+    }
+    .btn-connect {
+      width: 100%; background: #0061fe; color: #fff;
+      border: none; padding: 13px; border-radius: 8px;
+      font-size: 15px; font-weight: 600; cursor: pointer; margin-bottom: 10px;
+    }
+    .btn-connect:hover { background: #0052d9; }
+    .btn-connect:disabled { background: #333; color: #666; cursor: not-allowed; }
+    #pkceStatus { font-size: 13px; color: #888; min-height: 20px; margin-bottom: 6px; }
+    #pkceSuccess { display: none; background: #0d2e0d; border-radius: 8px; padding: 12px; margin-bottom: 14px; font-size: 13px; color: #4ade80; line-height: 1.5; }
   </style>
 </head>
 <body>
 <div class="card">
   <h1>🔐 Token Encryptor</h1>
-  <p class="sub">Run this once on your PC. Enter your Dropbox token and choose a password. Copy the encrypted output into index.html.</p>
+  <p class="sub">Run this on your desktop to connect Dropbox and encrypt your refresh token. Then paste the encrypted value into index.html.</p>
 
-  <label>Dropbox Access Token</label>
-  <textarea id="tokenInput" placeholder="sl.u.ABCxyz..."></textarea>
+  <!-- Step 1: Get refresh token via PKCE -->
+  <div class="step-label">Step 1 — Get Refresh Token</div>
+  <button class="btn-connect" id="btnPkceConnect">Connect with Dropbox</button>
+  <div id="pkceStatus"></div>
+  <div id="pkceSuccess">
+    ✓ Refresh token received and pre-filled below. Proceed to Step 2.
+  </div>
+
+  <div class="section-divider"></div>
+
+  <!-- Step 2: Encrypt it -->
+  <div class="step-label">Step 2 — Encrypt &amp; Copy</div>
+  <label>Dropbox Refresh Token</label>
+  <textarea id="tokenInput" placeholder="Paste refresh token here, or use Step 1 above…"></textarea>
 
   <label>Password (you'll type this on the iPad)</label>
   <div class="row">
@@ -81,17 +109,108 @@
   <button id="encryptBtn" onclick="doEncrypt()">Encrypt Token</button>
 
   <div class="output-box" id="outputBox">
-    <div class="output-label">Encrypted token — paste this into photo-frame.html</div>
+    <div class="output-label">Encrypted refresh token — paste this as ENCRYPTED_REFRESH_TOKEN in index.html</div>
     <div class="output-value" id="outputValue"></div>
     <button class="copy-btn" onclick="copyOutput()">📋 Copy</button>
   </div>
 
   <div class="info">
-    <strong>How it works:</strong> Your token is encrypted with RC4 using a key derived from your password + a random salt (10,000 key-stretching rounds). The encrypted string is safe to hardcode in your app's source code. Only your password can decrypt it.
+    <strong>How it works:</strong> The refresh token is encrypted with RC4 using a key derived from your password + a random salt (10,000 key-stretching rounds). It is safe to hardcode in your app's source code — only your password can decrypt it. Refresh tokens don't expire unless revoked, solving the 4-hour token limit.
   </div>
 </div>
 
 <script>
+// ── PKCE OAuth flow ──────────────────────────────────────
+var APP_KEY       = 'e0f1n3v11p0wz12';
+var DBX_TOKEN_URL = 'https://api.dropboxapi.com/oauth2/token';
+var PKCE_KEY      = 'pfpkce';
+
+function generateCodeVerifier() {
+  var arr = new Uint8Array(32);
+  window.crypto.getRandomValues(arr);
+  var str = '';
+  for (var i = 0; i < arr.length; i++) str += String.fromCharCode(arr[i]);
+  return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+function generateCodeChallenge(verifier) {
+  var encoder = new TextEncoder();
+  var data = encoder.encode(verifier);
+  return window.crypto.subtle.digest('SHA-256', data).then(function(hashBuffer) {
+    var hashArray = new Uint8Array(hashBuffer);
+    var str = '';
+    for (var i = 0; i < hashArray.length; i++) str += String.fromCharCode(hashArray[i]);
+    return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  });
+}
+function startPkceFlow() {
+  var btn = document.getElementById('btnPkceConnect');
+  var status = document.getElementById('pkceStatus');
+  btn.disabled = true;
+  status.textContent = 'Preparing…';
+  var verifier = generateCodeVerifier();
+  try { localStorage.setItem(PKCE_KEY, verifier); } catch(e) {}
+  var redirectUri = location.origin + location.pathname;
+  generateCodeChallenge(verifier).then(function(challenge) {
+    location.href = 'https://www.dropbox.com/oauth2/authorize' +
+      '?client_id=' + APP_KEY +
+      '&response_type=code' +
+      '&redirect_uri=' + encodeURIComponent(redirectUri) +
+      '&code_challenge=' + encodeURIComponent(challenge) +
+      '&code_challenge_method=S256' +
+      '&token_access_type=offline';
+  }).catch(function(e) {
+    btn.disabled = false;
+    status.textContent = 'Error: ' + e.message;
+  });
+}
+function completePkceExchange(code) {
+  var verifier = '';
+  try { verifier = localStorage.getItem(PKCE_KEY) || ''; localStorage.removeItem(PKCE_KEY); } catch(e) {}
+  var redirectUri = location.origin + location.pathname;
+  var status = document.getElementById('pkceStatus');
+  status.textContent = 'Exchanging authorization code…';
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', DBX_TOKEN_URL, true);
+  xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+  xhr.timeout = 30000;
+  xhr.onload = function() {
+    if (xhr.status === 200) {
+      var resp;
+      try { resp = JSON.parse(xhr.responseText); } catch(e) { status.textContent = 'Error: invalid response.'; return; }
+      if (!resp.refresh_token) { status.textContent = 'Error: no refresh token returned.'; return; }
+      document.getElementById('tokenInput').value = resp.refresh_token;
+      document.getElementById('pkceSuccess').style.display = 'block';
+      status.textContent = '';
+      // Clean up URL
+      if (history.replaceState) history.replaceState({}, document.title, location.pathname);
+    } else {
+      status.textContent = 'Exchange failed (' + xhr.status + '). Try again.';
+    }
+  };
+  xhr.onerror   = function() { status.textContent = 'Network error during exchange.'; };
+  xhr.ontimeout = function() { status.textContent = 'Exchange timed out.'; };
+  xhr.send('grant_type=authorization_code' +
+    '&code=' + encodeURIComponent(code) +
+    '&client_id=' + APP_KEY +
+    '&redirect_uri=' + encodeURIComponent(redirectUri) +
+    '&code_verifier=' + encodeURIComponent(verifier));
+}
+
+// On page load: wire button and check for PKCE redirect
+window.addEventListener('load', function() {
+  document.getElementById('btnPkceConnect').addEventListener('click', startPkceFlow);
+  var search = location.search;
+  if (search.indexOf('code=') !== -1) {
+    var params = search.slice(1).split('&');
+    for (var i = 0; i < params.length; i++) {
+      if (params[i].indexOf('code=') === 0) {
+        completePkceExchange(decodeURIComponent(params[i].slice(5)));
+        break;
+      }
+    }
+  }
+});
+
 // ── RC4 implementation ───────────────────────────────────
 function rc4ksa(key) {
   var S = [];
@@ -160,7 +279,7 @@ function doEncrypt() {
   var token = document.getElementById('tokenInput').value.trim();
   var pass  = document.getElementById('passInput').value;
 
-  if (!token) { alert('Please enter your Dropbox token.'); return; }
+  if (!token) { alert('Please enter your Dropbox refresh token (or use Step 1 to get one).'); return; }
   if (!pass)  { alert('Please enter a password.'); return; }
   if (pass.length < 4) { alert('Password should be at least 4 characters.'); return; }
 
@@ -170,7 +289,9 @@ function doEncrypt() {
 
   setTimeout(function() {
     try {
-      var result = encrypt(token, pass);
+      // Prepend 'rt:' prefix so index.html can verify correct password on decrypt
+      var plaintext = token.indexOf('rt:') === 0 ? token : 'rt:' + token;
+      var result = encrypt(plaintext, pass);
       document.getElementById('outputValue').textContent = result;
       document.getElementById('outputBox').style.display = 'block';
     } catch(e) {

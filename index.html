@@ -31,7 +31,7 @@
     /* Token screen */
     #tokenScreen h1  { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
     #tokenScreen p   { color: #888; font-size: 14px; margin-bottom: 24px; max-width: 340px; line-height: 1.6; }
-    #tokenInput {
+    #tokenInput, #setupPassInput {
       width: 100%; max-width: 420px;
       background: #1c1c1e; border: 1px solid #333;
       color: #fff; padding: 12px 14px;
@@ -39,7 +39,7 @@
       margin-bottom: 12px;
       -webkit-user-select: text; user-select: text;
     }
-    #tokenInput:focus { outline: none; border-color: #1a73e8; }
+    #tokenInput:focus, #setupPassInput:focus { outline: none; border-color: #1a73e8; }
     .btn-primary {
       background: #1a73e8; color: #fff; border: none;
       padding: 12px 28px; border-radius: 8px;
@@ -273,21 +273,64 @@
       -webkit-user-select: none; user-select: none;
     }
     .remember-row input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; -webkit-flex-shrink: 0; flex-shrink: 0; }
+
+    /* Setup sections */
+    .btn-secondary {
+      background: #2c2c2e; color: #aaa; border: none;
+      padding: 11px 20px; border-radius: 8px;
+      font-size: 14px; cursor: pointer;
+      width: 100%; max-width: 420px; margin-bottom: 8px;
+    }
+    .btn-secondary:active { background: #3c3c3e; }
+    #encryptedValueTA {
+      display: block; width: 100%; max-width: 420px;
+      background: #0a0a0a; border: 1px solid #2a2a2a;
+      color: #4ade80; padding: 10px 12px;
+      border-radius: 8px; font-size: 11px; font-family: monospace;
+      margin-bottom: 8px; min-height: 70px; resize: vertical;
+      -webkit-user-select: text; user-select: text;
+    }
+    #encryptedValueBox { width: 100%; max-width: 420px; }
   </style>
 </head>
 <body>
 
-<!-- Password entry -->
+<!-- Password / Setup entry -->
 <div class="screen" id="tokenScreen">
   <h1>📷 Photo Frame</h1>
-  <p>Enter your password to unlock your photos</p>
-  <input type="password" id="tokenInput" placeholder="Password" style="text-align:center;font-size:20px;letter-spacing:3px">
-  <label class="remember-row">
-    <input type="checkbox" id="rememberMe">
-    <span>Remember me on this device</span>
-  </label>
-  <button class="btn-primary" id="btnConnect">Unlock</button>
-  <p class="note" id="unlockStatus">&nbsp;</p>
+
+  <!-- First-run: no token available yet -->
+  <div id="setupSection" style="display:none">
+    <p>Connect your Dropbox account to get started.<br><span style="font-size:12px;color:#555">Requires a desktop or modern browser — not available on iOS 9.</span></p>
+    <button class="btn-primary" id="btnDropboxConnect">Connect with Dropbox</button>
+    <p class="note" id="setupStatus">&nbsp;</p>
+  </div>
+
+  <!-- After PKCE: choose a password -->
+  <div id="setupPasswordSection" style="display:none">
+    <p>Connected! Choose a password to protect your Dropbox access.</p>
+    <input type="password" id="setupPassInput" placeholder="Choose a password (min. 4 chars)" style="text-align:center">
+    <button class="btn-primary" id="btnSetupSave">Set Password</button>
+    <p class="note" id="setupPassStatus">&nbsp;</p>
+    <div id="encryptedValueBox" style="display:none">
+      <p class="note" style="color:#666;margin-top:14px">Optional: paste the value below into <code>index.html</code> as <code>ENCRYPTED_REFRESH_TOKEN</code> to avoid re-setup on new devices.</p>
+      <textarea id="encryptedValueTA" readonly></textarea>
+      <button class="btn-secondary" id="btnCopyEncrypted">Copy to Clipboard</button>
+      <button class="btn-primary" id="btnSetupContinue">Continue to Photo Frame</button>
+    </div>
+  </div>
+
+  <!-- Normal unlock: enter password -->
+  <div id="passwordSection" style="display:none">
+    <p>Enter your password to unlock your photos</p>
+    <input type="password" id="tokenInput" placeholder="Password" style="text-align:center;font-size:20px;letter-spacing:3px">
+    <label class="remember-row">
+      <input type="checkbox" id="rememberMe">
+      <span>Remember me on this device</span>
+    </label>
+    <button class="btn-primary" id="btnConnect">Unlock</button>
+    <p class="note" id="unlockStatus">&nbsp;</p>
+  </div>
 </div>
 
 <!-- Loading -->
@@ -395,16 +438,20 @@
 <div id="errorBanner"></div>
 
 <script>
-// ── PASTE YOUR ENCRYPTED TOKEN HERE ─────────────────────
-// Run token-encryptor.html on your PC to generate this value
-var ENCRYPTED_TOKEN = '10000:63861231d1d674a30b64da52e6b3797a:2a5b5d52d5835f04657ebfc6e8ab4128f4a1cb319f34224cb19cee2a0a04fa4b2d45946dc998fb1d49f83a10c0ce3d283dd3cb008a0c4c09b755eb15740d051448c98bad5a93d1f7a3971dea237ec05cfd46a3869098616b942aa0674db386a64e0508078a60698e691bd5f3e930c287841edb0a0ec0f605529d80e3153afff88279d553ece12cec0675b09a2d999a85195a742e1d4b23d4cf47bfa2febafa13d956f553848e70f3a05cd8bf4a8abb7f8d3813df16b0ae0cc46f56b77b26da6148ba3a54fc2103b392c0a57775db3dfaaed5efa9fbc147b92c693797a3a708214c3c5b5c44f5d1efb2444a9649949ecbca5144ba9735a862740582d08024fafec4c925dc944209ebb1beb78cfe1fe5f8c6c9cf7f6d90b529ea6d1252d9a0addf4cd29dc792ef36ad1d0153af996564a0857fc4dcd632a9965d3b75b254abb0eda280bc23a74a8b67423db5d9f01beb0c2fe13cf78b4efe42ff5662d3ed1c6a8e9e102438a94aa26aa3a2edf23e90b9b0746cd5b3d554ea7066bb1e23a6e526a11e3143d84ff760ad173d7fb6e960c6a44d020bba23a8f756fbc8ca0dc13e2cf7b811931905933b8380019c2a6a2ccc736da2b25e87dac307cfb4e27952ec5fe64142ffdab8dcafbecdeea4e72e1c605d728256b58b3e8807824b3a6214188ccbe8d83e730f4a878c6f0e55a564cea9a9c66f88dbf417212802200d4142a3bc0923f6bda6a799d223ed08db267a90a7a54fecefc7748dd3709193a6f96b86836aa211de217e204129c32f0b5356a218ed7235d861f7d9e1c50cd746dd5e7c8705746b8288396e0d04959a3a6960f37550273ee07c1fe16a84a4b8e76dff8104afacafa0102d6a577a8c48dbf604b2726b9a1d16afcbfa3db40ac3e761c37387548729a5db60b9d31f2cb47d4961387f7a5b0add73a3767abe6ba1fe3cdb243f1e68697c699dc2cc86274d77bd95c1584a58dc0e62e7d0d5b4f71d5f7b01efe0bde29511c84b1324ddf0cc74f1090eda9f885d13ba32b16970113650522d85095f188ab28b6040834f6badde8cbaa070a628586ee0bb05f5fe82233c5101afa0dd3c9e35afa2dfa54ec40fc5ec87aea62dbbc59e7897b41d920fe8805de42ec68b1c26dabbf12578ba23905e4fbf7456d36ab98598596ac61b4c1e4a27ca2bceb605aebae0a974f7a467f2f9316795d22cffd38b9167470720e455532fc28ba81706d3c62f697bd30db00fa574afb0f30d619bc0bdca6f26c291aeedc1128e89f5a5231266c3fc3df18db6e0899983c80cbece923e944bcf28da60dc210645780d21cba35322f9ddf333db5aa15cecd8f3de5d29cae566cc886af98614bbd772ae8f2498da39bfc9a511d494404eb99ba630d3fa7c07ababd82507d25381fdd2c838f3ff46fd3df57417ac43c3f1299491d7d3b4858e5d5add1a01ec12d36c2039c43c3d9f53a23d13df4cb0856608aa9186d1695b37eb8b01ca19c0ad1c7bbfb74feb4fb2ddfa80f3e7615aa51f32090a39e6a95fc8588b057f5f150ad6cee23b13c071a04ad86a059dea16ff366f7648394bc48ffb4fb889df48d675a9924ca3c073d54ef1df0b98826490cd3a373db27e7bd00a2bc439e961296f7fe22df0ed85090c66d39c429fd6acdb8e35c19c836a77771f3227e8cf1ca64427ba87f3d2fefbba2facf5c912a527e9e5b3fb3c984d7c3250715c73e4e3c181ecae86b45ebeec8a8c684f5c9dd066ea74dd0709c620d33c29a1a60e62ac01fe914ec108015035301b12c06658cdf31c8a73e3b0278f1a51757dd9df127446503013a432367db416bc36b19dbc43a6541f49f9467891cd2c70039f33eb02912a24b8cb7fcce0f79c220defbc08d2e3b786782df87dfabca41b79dc014e2390b3ad5f1f351469d7fed8f7688060';
+// ── PASTE YOUR ENCRYPTED REFRESH TOKEN HERE ──────────────
+// Generate via token-encryptor.html or the Connect button on this page
+var ENCRYPTED_REFRESH_TOKEN = 'PASTE_ENCRYPTED_REFRESH_TOKEN_HERE';
 // ─────────────────────────────────────────────────────────
 
-var DBX_API      = 'https://api.dropboxapi.com/2';
-var IMAGE_EXTS   = ['jpg','jpeg','png','gif','webp','bmp','tiff','tif','heic'];
-var STORAGE_KEY  = 'pftoken';
-var SETTINGS_KEY = 'pfsettings';
-var HISTORY_KEY  = 'pfhistory';
+var APP_KEY       = 'e0f1n3v11p0wz12';
+var DBX_API       = 'https://api.dropboxapi.com/2';
+var DBX_TOKEN_URL = 'https://api.dropboxapi.com/oauth2/token';
+var IMAGE_EXTS    = ['jpg','jpeg','png','gif','webp','bmp','tiff','tif','heic'];
+var STORAGE_KEY   = 'pfrefresh';    // raw refresh token for auto-connect (remember-me)
+var STORAGE_ENC_KEY = 'pfenctoken'; // encrypted refresh token from first-run setup
+var PKCE_KEY      = 'pfpkce';       // temporary PKCE code verifier across redirect
+var SETTINGS_KEY  = 'pfsettings';
+var HISTORY_KEY   = 'pfhistory';
 
 // ── RC4 decryption ───────────────────────────────────────
 function rc4ksa(key) {
@@ -459,10 +506,126 @@ function decryptToken(encryptedData, password) {
   return result;
 }
 
+// ── RC4 encryption (for first-run setup export) ──────────
+function hexFromBytes(bytes) {
+  var h = '';
+  for (var i = 0; i < bytes.length; i++) h += ('00' + bytes[i].toString(16)).slice(-2);
+  return h;
+}
+function encryptForExport(plaintext, password) {
+  var ITERATIONS = 10000;
+  var saltArr = new Uint8Array(16);
+  window.crypto.getRandomValues(saltArr);
+  var saltHex = hexFromBytes(Array.from(saltArr));
+  var key = deriveKey(password, saltHex, ITERATIONS);
+  var S = rc4ksa(key);
+  var plainBytes = [];
+  for (var i = 0; i < plaintext.length; i++) plainBytes.push(plaintext.charCodeAt(i) & 0xFF);
+  var ks = rc4stream(S, plainBytes.length);
+  var cipherBytes = plainBytes.map(function(b, i) { return b ^ ks[i]; });
+  return ITERATIONS + ':' + saltHex + ':' + hexFromBytes(cipherBytes);
+}
+
+// ── PKCE OAuth flow (desktop first-run setup) ────────────
+function generateCodeVerifier() {
+  var arr = new Uint8Array(32);
+  window.crypto.getRandomValues(arr);
+  var str = '';
+  for (var i = 0; i < arr.length; i++) str += String.fromCharCode(arr[i]);
+  return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+function generateCodeChallenge(verifier) {
+  var encoder = new TextEncoder();
+  var data = encoder.encode(verifier);
+  return window.crypto.subtle.digest('SHA-256', data).then(function(hashBuffer) {
+    var hashArray = new Uint8Array(hashBuffer);
+    var str = '';
+    for (var i = 0; i < hashArray.length; i++) str += String.fromCharCode(hashArray[i]);
+    return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  });
+}
+function startPkceFlow() {
+  var verifier = generateCodeVerifier();
+  try { localStorage.setItem(PKCE_KEY, verifier); } catch(e) {}
+  var redirectUri = location.origin + location.pathname;
+  generateCodeChallenge(verifier).then(function(challenge) {
+    location.href = 'https://www.dropbox.com/oauth2/authorize' +
+      '?client_id=' + APP_KEY +
+      '&response_type=code' +
+      '&redirect_uri=' + encodeURIComponent(redirectUri) +
+      '&code_challenge=' + encodeURIComponent(challenge) +
+      '&code_challenge_method=S256' +
+      '&token_access_type=offline';
+  }).catch(function(e) {
+    document.getElementById('setupStatus').textContent = 'Error: ' + e.message;
+  });
+}
+function completePkceExchange(code) {
+  var verifier = '';
+  try { verifier = localStorage.getItem(PKCE_KEY) || ''; localStorage.removeItem(PKCE_KEY); } catch(e) {}
+  var redirectUri = location.origin + location.pathname;
+  return new Promise(function(resolve, reject) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', DBX_TOKEN_URL, true);
+    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    xhr.timeout = 30000;
+    xhr.onload = function() {
+      if (xhr.status === 200) {
+        var resp;
+        try { resp = JSON.parse(xhr.responseText); } catch(e) { reject(new Error('Invalid response')); return; }
+        if (!resp.refresh_token) { reject(new Error('No refresh token in response. Ensure token_access_type=offline was sent.')); return; }
+        resolve(resp.refresh_token);
+      } else {
+        reject(new Error('Exchange failed (' + xhr.status + '): ' + xhr.responseText));
+      }
+    };
+    xhr.onerror   = function() { reject(new Error('Network error during token exchange.')); };
+    xhr.ontimeout = function() { reject(new Error('Token exchange timed out.')); };
+    xhr.send('grant_type=authorization_code' +
+      '&code=' + encodeURIComponent(code) +
+      '&client_id=' + APP_KEY +
+      '&redirect_uri=' + encodeURIComponent(redirectUri) +
+      '&code_verifier=' + encodeURIComponent(verifier));
+  });
+}
+
+// ── Token refresh ────────────────────────────────────────
+function refreshAccessToken() {
+  return new Promise(function(resolve, reject) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', DBX_TOKEN_URL, true);
+    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    xhr.timeout = 30000;
+    xhr.onload = function() {
+      if (xhr.status === 200) {
+        var resp;
+        try { resp = JSON.parse(xhr.responseText); } catch(e) { reject(new Error('Invalid token response')); return; }
+        state.token = resp.access_token;
+        state.tokenExpiry = Date.now() + ((resp.expires_in || 14400) - 300) * 1000;
+        clearInterval(state.tokenRefreshTimer);
+        state.tokenRefreshTimer = setInterval(silentRefreshAccessToken, 3.5 * 3600 * 1000);
+        resolve();
+      } else {
+        reject(new Error('Token refresh failed (' + xhr.status + ')'));
+      }
+    };
+    xhr.onerror   = function() { reject(new Error('Network error during token refresh.')); };
+    xhr.ontimeout = function() { reject(new Error('Token refresh timed out.')); };
+    xhr.send('grant_type=refresh_token&refresh_token=' + encodeURIComponent(state.refreshToken) + '&client_id=' + APP_KEY);
+  });
+}
+function silentRefreshAccessToken() {
+  if (!state.refreshToken) return;
+  refreshAccessToken().catch(function(e) { console.warn('Token auto-refresh failed:', e.message); });
+}
+
 // ── State ────────────────────────────────────────────────
 var state = {
-  token:           null,
-  allPhotos:       [],   // full list before orientation filter
+  token:             null,   // short-lived Dropbox access token (4 h)
+  refreshToken:      null,   // long-lived refresh token (decrypted, in memory)
+  tokenExpiry:       0,      // ms timestamp when access token expires
+  tokenRefreshTimer: null,   // setInterval handle for proactive renewal
+  allPhotos:         [],     // full list before orientation filter
   photos:          [],   // [{name,path,timeTaken,width,height,albumName}] after filter
   index:           0,
   activeSlide:     'A',
@@ -605,6 +768,13 @@ window.onload = function() {
   document.getElementById('tokenInput').addEventListener('keydown', function(e) {
     if (e.keyCode === 13) onConnect();
   });
+  document.getElementById('btnDropboxConnect').addEventListener('click', startPkceFlow);
+  document.getElementById('btnSetupSave').addEventListener('click', onSetupSave);
+  document.getElementById('btnSetupContinue').addEventListener('click', onSetupContinue);
+  document.getElementById('btnCopyEncrypted').addEventListener('click', copyEncryptedValue);
+  document.getElementById('setupPassInput').addEventListener('keydown', function(e) {
+    if (e.keyCode === 13) onSetupSave();
+  });
 
   document.getElementById('folderBack').addEventListener('click', function() {
     var parent = parentPath(state.browsePath);
@@ -637,20 +807,75 @@ window.onload = function() {
   document.getElementById('refreshIntervalSel').addEventListener('change', applyRefreshInterval);
   document.getElementById('btnSignOut').addEventListener('click', signOut);
 
-  tryAutoConnect();
+  // Detect PKCE redirect back from Dropbox (?code=...)
+  var pkceCode = null;
+  var search = location.search;
+  if (search.indexOf('code=') !== -1) {
+    var params = search.slice(1).split('&');
+    for (var pi = 0; pi < params.length; pi++) {
+      if (params[pi].indexOf('code=') === 0) {
+        pkceCode = decodeURIComponent(params[pi].slice(5));
+        break;
+      }
+    }
+  }
+
+  if (pkceCode) {
+    history.replaceState({}, document.title, location.pathname);
+    showScreen('tokenScreen');
+    document.getElementById('setupSection').style.display = 'none';
+    document.getElementById('passwordSection').style.display = 'none';
+    document.getElementById('setupPasswordSection').style.display = 'block';
+    document.getElementById('setupPassStatus').textContent = 'Completing Dropbox connection…';
+    completePkceExchange(pkceCode).then(function(refreshToken) {
+      pendingRefreshToken = refreshToken;
+      document.getElementById('setupPassStatus').textContent = 'Connected! Choose a password below.';
+    }).catch(function(e) {
+      document.getElementById('setupPasswordSection').style.display = 'none';
+      document.getElementById('setupSection').style.display = 'block';
+      document.getElementById('setupStatus').textContent = 'Connection failed: ' + e.message;
+    });
+  } else {
+    tryAutoConnect();
+  }
 };
 
 // ── Token ────────────────────────────────────────────────
+var pendingRefreshToken = null; // held between PKCE exchange and password setup
+
+function getEncryptedToken() {
+  if (ENCRYPTED_REFRESH_TOKEN !== 'PASTE_ENCRYPTED_REFRESH_TOKEN_HERE') return ENCRYPTED_REFRESH_TOKEN;
+  try { return localStorage.getItem(STORAGE_ENC_KEY) || null; } catch(e) { return null; }
+}
+
+function showTokenScreen() {
+  showScreen('tokenScreen');
+  var hasEncToken = !!getEncryptedToken();
+  var hasRawToken = false;
+  try { var s = localStorage.getItem(STORAGE_KEY); hasRawToken = !!(s && s.length > 20); } catch(e) {}
+  document.getElementById('setupSection').style.display        = (hasEncToken || hasRawToken) ? 'none'  : 'block';
+  document.getElementById('passwordSection').style.display     = hasEncToken                  ? 'block' : 'none';
+  document.getElementById('setupPasswordSection').style.display = 'none';
+}
+
 function tryAutoConnect() {
-  var saved = localStorage.getItem(STORAGE_KEY);
-  if (saved && saved.indexOf('sl.') === 0) {
-    state.token = saved;
+  var raw = null;
+  try { raw = localStorage.getItem(STORAGE_KEY); } catch(e) {}
+  if (raw && raw.length > 20) {
+    state.refreshToken = raw;
     setLoading('Connecting…');
     showScreen('loadingScreen');
-    loadFolders('');
-  } else {
-    showScreen('tokenScreen');
+    refreshAccessToken().then(function() {
+      loadFolders('');
+    }).catch(function(e) {
+      try { localStorage.removeItem(STORAGE_KEY); } catch(e2) {}
+      state.refreshToken = null;
+      showError(e.message);
+      showTokenScreen();
+    });
+    return;
   }
+  showTokenScreen();
 }
 
 function signOut() {
@@ -662,8 +887,9 @@ function signOut() {
 function onConnect() {
   var pass = document.getElementById('tokenInput').value;
   if (!pass) { showError('Please enter your password.'); return; }
-  if (ENCRYPTED_TOKEN === 'PASTE_ENCRYPTED_TOKEN_HERE') {
-    showError('No encrypted token set. Run token-encryptor.html first.');
+  var encToken = getEncryptedToken();
+  if (!encToken) {
+    showError('No encrypted token found. Use "Connect with Dropbox" first.');
     return;
   }
   var status = document.getElementById('unlockStatus');
@@ -671,25 +897,87 @@ function onConnect() {
   status.textContent = 'Unlocking…';
   btn.disabled = true;
   setTimeout(function() {
-    var token = decryptToken(ENCRYPTED_TOKEN, pass);
+    var decrypted = decryptToken(encToken, pass);
     btn.disabled = false;
-    if (!token || token.indexOf('sl.') !== 0) {
+    if (!decrypted || decrypted.indexOf('rt:') !== 0) {
       status.textContent = 'Wrong password. Try again.';
       document.getElementById('tokenInput').value = '';
       return;
     }
     status.textContent = ' ';
-    state.token = token;
+    state.refreshToken = decrypted.slice(3); // strip 'rt:' prefix
     if (document.getElementById('rememberMe').checked) {
-      localStorage.setItem(STORAGE_KEY, token);
+      try { localStorage.setItem(STORAGE_KEY, state.refreshToken); } catch(e) {}
     }
+    setLoading('Connecting…');
     showScreen('loadingScreen');
-    loadFolders('');
+    refreshAccessToken().then(function() {
+      loadFolders('');
+    }).catch(function(e) {
+      state.refreshToken = null;
+      showError('Connection failed: ' + e.message);
+      showTokenScreen();
+    });
   }, 50);
 }
 
+function onSetupSave() {
+  var pass = document.getElementById('setupPassInput').value;
+  var status = document.getElementById('setupPassStatus');
+  if (!pass || pass.length < 4) {
+    status.textContent = 'Password must be at least 4 characters.';
+    return;
+  }
+  if (!pendingRefreshToken) {
+    status.textContent = 'No refresh token. Please try connecting again.';
+    return;
+  }
+  var btn = document.getElementById('btnSetupSave');
+  btn.disabled = true;
+  status.textContent = 'Encrypting…';
+  setTimeout(function() {
+    var encrypted = encryptForExport('rt:' + pendingRefreshToken, pass);
+    try { localStorage.setItem(STORAGE_ENC_KEY, encrypted); } catch(e) {}
+    document.getElementById('encryptedValueTA').value = encrypted;
+    document.getElementById('encryptedValueBox').style.display = 'block';
+    status.textContent = ' ';
+    btn.disabled = false;
+  }, 50);
+}
+
+function onSetupContinue() {
+  if (!pendingRefreshToken) return;
+  state.refreshToken = pendingRefreshToken;
+  pendingRefreshToken = null;
+  try { localStorage.setItem(STORAGE_KEY, state.refreshToken); } catch(e) {}
+  setLoading('Connecting…');
+  showScreen('loadingScreen');
+  refreshAccessToken().then(function() {
+    loadFolders('');
+  }).catch(function(e) {
+    state.refreshToken = null;
+    showError('Connection failed: ' + e.message);
+    showTokenScreen();
+  });
+}
+
+function copyEncryptedValue() {
+  var ta  = document.getElementById('encryptedValueTA');
+  var btn = document.getElementById('btnCopyEncrypted');
+  var val = ta.value;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(val).catch(function() { ta.select(); document.execCommand('copy'); });
+  } else {
+    ta.select(); document.execCommand('copy');
+  }
+  btn.textContent = 'Copied!';
+  setTimeout(function() { btn.textContent = 'Copy to Clipboard'; }, 2000);
+}
+
 function clearToken() {
-  state.token = null;
+  state.token        = null;
+  state.refreshToken = null;
+  state.tokenExpiry  = 0;
   state.selectedPaths = [];
   state.browsePath = '';
   state.allPhotos = [];
@@ -697,7 +985,8 @@ function clearToken() {
   clearTimeout(state.timer);
   clearInterval(state.refreshTimer);
   clearInterval(state.clockTimer);
-  localStorage.removeItem(STORAGE_KEY);
+  clearInterval(state.tokenRefreshTimer);
+  try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
   document.getElementById('slideshow').style.display = 'none';
   document.getElementById('slideA').classList.remove('active');
   document.getElementById('slideB').classList.remove('active');
@@ -706,34 +995,44 @@ function clearToken() {
   document.getElementById('startSlideshow').classList.remove('visible');
   document.getElementById('tokenInput').value = '';
   document.getElementById('unlockStatus').textContent = ' ';
-  showScreen('tokenScreen');
+  showTokenScreen();
 }
 
 // ── Dropbox API ──────────────────────────────────────────
-function dbxPost(endpoint, body) {
-  return new Promise(function(resolve, reject) {
-    var xhr = new XMLHttpRequest();
-    xhr.open('POST', DBX_API + endpoint, true);
-    xhr.setRequestHeader('Authorization', 'Bearer ' + state.token);
-    xhr.setRequestHeader('Content-Type', 'application/json');
-    xhr.timeout = 30000;
-    xhr.onload = function() {
-      if (xhr.status === 401) {
-        clearToken();
-        reject(new Error('Wrong password or token expired. Please try again.'));
-        return;
-      }
-      if (xhr.status < 200 || xhr.status >= 300) {
-        reject(new Error('Dropbox error ' + xhr.status + ': ' + xhr.responseText));
-        return;
-      }
-      try { resolve(JSON.parse(xhr.responseText)); }
-      catch(e) { reject(new Error('Invalid response from Dropbox')); }
-    };
-    xhr.onerror   = function() { reject(new Error('Network error — cannot reach Dropbox.')); };
-    xhr.ontimeout = function() { reject(new Error('Timed out — Dropbox API unreachable.')); };
-    xhr.send(JSON.stringify(body));
-  });
+function dbxPost(endpoint, body, _retried) {
+  var doIt = function() {
+    return new Promise(function(resolve, reject) {
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', DBX_API + endpoint, true);
+      xhr.setRequestHeader('Authorization', 'Bearer ' + state.token);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.timeout = 30000;
+      xhr.onload = function() {
+        if (xhr.status === 401 && !_retried) {
+          refreshAccessToken().then(function() {
+            return dbxPost(endpoint, body, true);
+          }).then(resolve).catch(function() {
+            clearToken();
+            reject(new Error('Session expired. Please sign in again.'));
+          });
+          return;
+        }
+        if (xhr.status < 200 || xhr.status >= 300) {
+          reject(new Error('Dropbox error ' + xhr.status + ': ' + xhr.responseText));
+          return;
+        }
+        try { resolve(JSON.parse(xhr.responseText)); }
+        catch(e) { reject(new Error('Invalid response from Dropbox')); }
+      };
+      xhr.onerror   = function() { reject(new Error('Network error — cannot reach Dropbox.')); };
+      xhr.ontimeout = function() { reject(new Error('Timed out — Dropbox API unreachable.')); };
+      xhr.send(JSON.stringify(body));
+    });
+  };
+  if (!_retried && state.tokenExpiry > 0 && Date.now() > state.tokenExpiry) {
+    return refreshAccessToken().then(doIt);
+  }
+  return doIt();
 }
 
 function listAll(path, accumulated) {
