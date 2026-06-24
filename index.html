@@ -795,11 +795,13 @@ window.onload = function() {
 
   var tapZone = document.getElementById('tapZone');
   var swipeTouchX = 0, swipeTouchY = 0;
+  var lastTouchEnd = 0;
   tapZone.addEventListener('touchstart', function(e) {
     swipeTouchX = e.changedTouches[0].clientX;
     swipeTouchY = e.changedTouches[0].clientY;
   });
   tapZone.addEventListener('touchend', function(e) {
+    lastTouchEnd = Date.now();
     var dx = e.changedTouches[0].clientX - swipeTouchX;
     var dy = e.changedTouches[0].clientY - swipeTouchY;
     if (Math.abs(dx) >= 40 && Math.abs(dx) > Math.abs(dy)) {
@@ -808,7 +810,10 @@ window.onload = function() {
       handleTap();
     }
   });
-  tapZone.addEventListener('click', function(e) { e.stopPropagation(); });
+  tapZone.addEventListener('click', function(e) {
+    e.stopPropagation();
+    if (Date.now() - lastTouchEnd > 500) { handleTap(); }
+  });
   document.getElementById('btnFolders').addEventListener('click', goToFolders);
   document.getElementById('btnPrev').addEventListener('click', prevPhoto);
   document.getElementById('btnPause').addEventListener('click', togglePause);
