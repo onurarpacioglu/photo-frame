@@ -74,12 +74,12 @@
       -webkit-user-select: text; user-select: text;
     }
     #patternInput:focus { outline: none; border-color: #1a73e8; }
-    #btnCheckPattern {
+    .btn-pattern {
       background: #2c2c2e; color: #1a73e8; border: 1px solid #1a73e8;
       padding: 9px 12px; border-radius: 8px; font-size: 13px;
       cursor: pointer; white-space: nowrap;
     }
-    #btnCheckPattern:active { background: #0d2e4e; }
+    .btn-pattern:active { background: #0d2e4e; }
     #folderActions {
       display: -webkit-flex; display: flex;
       gap: 8px; width: 100%; max-width: 520px; margin-bottom: 10px;
@@ -350,7 +350,8 @@
   <p class="hint">Tap to select, then start the slideshow</p>
   <div id="patternRow">
     <input type="text" id="patternInput" placeholder="Filter by name…" autocorrect="off" autocapitalize="none" spellcheck="false">
-    <button id="btnCheckPattern">Check matching</button>
+    <button id="btnCheckPattern" class="btn-pattern">Select</button>
+    <button id="btnUncheckPattern" class="btn-pattern">Unselect</button>
   </div>
   <div id="folderActions">
     <button class="btn-fol-action" id="btnSelAll">Select all</button>
@@ -463,6 +464,7 @@ var PKCE_KEY      = 'pfpkce';       // temporary PKCE code verifier across redir
 var SETTINGS_KEY  = 'pfsettings';
 var HISTORY_KEY   = 'pfhistory';
 var LAST_PATHS_KEY = 'pflastpaths';
+var ORIENT_KEY    = 'pforient';    // orientation dimensions cache
 
 // ── RC4 decryption ───────────────────────────────────────
 function rc4ksa(key) {
@@ -779,6 +781,39 @@ function recordView(path) {
   } catch(e) {}
 }
 
+// ── Orientation cache ────────────────────────────────────
+var orientationCache = null; // in-memory copy of ORIENT_KEY; lazily loaded, written-through
+
+function getOrientationCache() {
+  if (orientationCache !== null) return orientationCache;
+  try {
+    var raw = localStorage.getItem(ORIENT_KEY);
+    orientationCache = raw ? JSON.parse(raw) : {};
+  } catch(e) { orientationCache = {}; }
+  return orientationCache;
+}
+
+function setOrientationDims(path, w, h) {
+  var cache = getOrientationCache();
+  cache[path] = {w: w, h: h};
+  try { localStorage.setItem(ORIENT_KEY, JSON.stringify(cache)); } catch(e) {}
+}
+
+function pruneOrientationCache(rootFolders) {
+  var cache = getOrientationCache();
+  var keys = Object.keys(cache);
+  if (!keys.length) return;
+  var known = {};
+  for (var i = 0; i < rootFolders.length; i++) known[rootFolders[i].path_lower] = true;
+  var changed = false;
+  for (var j = 0; j < keys.length; j++) {
+    var parts = keys[j].split('/'); // ['', 'folder', 'file.jpg', ...]
+    var topFolder = parts.length > 2 ? '/' + parts[1] : null;
+    if (topFolder !== null && !known[topFolder]) { delete cache[keys[j]]; changed = true; }
+  }
+  if (changed) { try { localStorage.setItem(ORIENT_KEY, JSON.stringify(cache)); } catch(e) {} }
+}
+
 // ── Boot ─────────────────────────────────────────────────
 window.onload = function() {
   loadSettings();
@@ -799,9 +834,10 @@ window.onload = function() {
     var parent = parentPath(state.browsePath);
     if (parent !== null) loadFolders(parent);
   });
-  document.getElementById('btnCheckPattern').addEventListener('click', applyPattern);
+  document.getElementById('btnCheckPattern').addEventListener('click', function() { applyPattern(false); });
+  document.getElementById('btnUncheckPattern').addEventListener('click', function() { applyPattern(true); });
   document.getElementById('patternInput').addEventListener('keydown', function(e) {
-    if (e.keyCode === 13) applyPattern();
+    if (e.keyCode === 13) applyPattern(false);
   });
   document.getElementById('btnSelAll').addEventListener('click', selectAllVisible);
   document.getElementById('btnDeselAll').addEventListener('click', deselectAll);
@@ -1164,11 +1200,11 @@ function dbxPost(endpoint, body, _retried) {
   return doIt();
 }
 
-function listAll(path, accumulated) {
+function listAll(path, accumulated, recursive) {
   accumulated = accumulated || [];
   return dbxPost('/files/list_folder', {
     path: path,
-    recursive: false,
+    recursive: recursive || false,
     include_media_info: true,
     include_deleted: false,
     include_has_explicit_shared_members: false
@@ -1197,6 +1233,7 @@ function loadFolders(path) {
     for (var i = 0; i < entries.length; i++) {
       if (entries[i]['.tag'] === 'folder') folders.push(entries[i]);
     }
+    if (path === '') pruneOrientationCache(folders);
     renderFolders(path, folders);
   }).catch(function(e) {
     showError(e.message);
@@ -1297,28 +1334,54 @@ function updateStartButton() {
   }
 }
 
-function applyPattern() {
+function applyPattern(deselect) {
   var raw = document.getElementById('patternInput').value.trim().toLowerCase();
   if (!raw) return;
-  var rows = document.querySelectorAll('#folderList .folder-row');
-  var matched = 0;
-  each(rows, function(row) {
-    var nameEl = row.querySelector('.folder-name');
-    if (!nameEl) return;
-    var name = nameEl.textContent.toLowerCase();
-    var path = row.getAttribute('data-path');
-    if (path === null) return;
-    var matches = patternMatch(raw, name);
-    if (matches && state.selectedPaths.indexOf(path) === -1) {
-      state.selectedPaths.push(path);
-      row.classList.add('checked');
-      var ck = row.querySelector('.folder-check');
-      if (ck) ck.textContent = '✓';
-      matched++;
+  setLoading('Searching…');
+  showScreen('loadingScreen');
+  listAll(state.browsePath, [], true).then(function(entries) {
+    var matched = 0;
+
+    function togglePath(path) {
+      var idx = state.selectedPaths.indexOf(path);
+      if (deselect) {
+        if (idx !== -1) { state.selectedPaths.splice(idx, 1); matched++; }
+      } else {
+        if (idx === -1) { state.selectedPaths.push(path); matched++; }
+      }
     }
+
+    // Check the current browse folder itself
+    if (state.browsePath) {
+      var curName = state.browsePath.split('/').pop().toLowerCase();
+      if (patternMatch(raw, curName)) togglePath(state.browsePath);
+    }
+
+    // Check all subfolders at any depth
+    for (var i = 0; i < entries.length; i++) {
+      var e = entries[i];
+      if (e['.tag'] !== 'folder') continue;
+      if (patternMatch(raw, e.name.toLowerCase())) togglePath(e.path_lower);
+    }
+
+    // Refresh check marks on visible rows
+    var rows = document.querySelectorAll('#folderList .folder-row');
+    each(rows, function(row) {
+      var path = row.getAttribute('data-path');
+      if (path === null) return;
+      var sel = state.selectedPaths.indexOf(path) !== -1;
+      row.classList[sel ? 'add' : 'remove']('checked');
+      var ck = row.querySelector('.folder-check');
+      if (ck) ck.textContent = sel ? '✓' : '';
+    });
+
+    updateStartButton();
+    showScreen('folderScreen');
+    if (matched === 0) showError('No ' + (deselect ? 'selected' : 'unselected') + ' folders match "' + raw + '"');
+  }).catch(function(e) {
+    showError(e.message);
+    showScreen('folderScreen');
   });
-  updateStartButton();
-  if (matched === 0) showError('No unselected albums match "' + raw + '"');
 }
 
 function patternMatch(pattern, str) {
@@ -1408,7 +1471,8 @@ function startFromSelected() {
 
 function loadPhotosFromPath(path) {
   var albumName = path === '' ? 'Root' : path.split('/').pop();
-  return listAll(path).then(function(entries) {
+  return listAll(path, [], true).then(function(entries) {
+    var orientCache = getOrientationCache();
     var photos = [];
     for (var i = 0; i < entries.length; i++) {
       var e = entries[i];
@@ -1418,6 +1482,10 @@ function loadPhotosFromPath(path) {
         var meta = e.media_info.metadata;
         if (meta.time_taken) timeTaken = meta.time_taken;
         if (meta.dimensions) { w = meta.dimensions.width || 0; h = meta.dimensions.height || 0; }
+      }
+      if (w === 0) {
+        var cached = orientCache[e.path_lower];
+        if (cached) { w = cached.w || 0; h = cached.h || 0; }
       }
       photos.push({ name: e.name, path: e.path_lower, timeTaken: timeTaken, width: w, height: h, albumName: albumName });
     }
@@ -1466,6 +1534,8 @@ function reapplyOrientationFilter() {
   var filtered = filterByOrientation(state.allPhotos);
   if (state.index >= filtered.length) state.index = 0;
   state.photos = filtered;
+  clearTimeout(state.timer);
+  advanceTo(state.index);
 }
 
 // ── Slideshow ────────────────────────────────────────────
@@ -1553,6 +1623,39 @@ function displaySlide(path, url) {
 
   nextSlide.className = 'slide' + (state.fit === 'cover' ? ' cover' : state.fit === 'stretch' ? ' stretch' : '');
   nextImg.onload = function() {
+    var nw = nextImg.naturalWidth;
+    var nh = nextImg.naturalHeight;
+
+    // Write discovered dimensions back into allPhotos (same object refs as state.photos)
+    if (nw > 0 && nh > 0) {
+      for (var i = 0; i < state.allPhotos.length; i++) {
+        if (state.allPhotos[i].path === path && state.allPhotos[i].width === 0) {
+          state.allPhotos[i].width  = nw;
+          state.allPhotos[i].height = nh;
+          setOrientationDims(path, nw, nh);
+          break;
+        }
+      }
+    }
+
+    // Check actual orientation against the active filter
+    if (!(state.showPortrait && state.showLandscape) && nw > 0 && nh > 0) {
+      var isPortrait = nh >= nw;
+      var wrongOrientation = (isPortrait && !state.showPortrait) || (!isPortrait && !state.showLandscape);
+      if (wrongOrientation) {
+        for (var j = 0; j < state.photos.length; j++) {
+          if (state.photos[j].path === path) { state.photos.splice(j, 1); break; }
+        }
+        if (!state.photos.length) {
+          showError('No photos match the selected orientation filter.');
+          return;
+        }
+        state.index = state.index % state.photos.length;
+        advanceTo(state.index);
+        return;
+      }
+    }
+
     nextSlide.classList.add('active');
     currSlide.classList.remove('active');
     state.activeSlide = (nextSlideId === 'slideA') ? 'A' : 'B';
