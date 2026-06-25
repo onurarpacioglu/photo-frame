@@ -1351,7 +1351,7 @@ function effectiveSelectedPaths() {
 
 function updateStartButton() {
   var btn = document.getElementById('startSlideshow');
-  var n = effectiveSelectedPaths().length;
+  var n = state.selectedPaths.length;
   if (n > 0) {
     btn.textContent = 'Start Slideshow (' + n + ' album' + (n > 1 ? 's' : '') + ')';
     btn.classList.add('visible');
