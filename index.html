@@ -660,7 +660,8 @@ var state = {
   selectedPaths:   [],
   browsePath:      '',
   skipCount:       0,
-  paused:          false
+  paused:          false,
+  slideshowGen:    0
 };
 
 var linkCache = {};
@@ -1133,6 +1134,7 @@ function copyEncryptedValue() {
 }
 
 function clearToken() {
+  state.slideshowGen++;
   state.token        = null;
   state.refreshToken = null;
   state.tokenExpiry  = 0;
@@ -1599,6 +1601,7 @@ function startSlideshow() {
 }
 
 function advanceTo(idx) {
+  var gen = state.slideshowGen;
   var photo = state.photos[idx];
   document.getElementById('photoCounter').textContent = (idx + 1) + ' / ' + state.photos.length;
 
@@ -1622,7 +1625,7 @@ function advanceTo(idx) {
   if (blobUrl) {
     delete blobCache[photo.path];
     state.skipCount = 0;
-    displaySlide(photo.path, blobUrl);
+    displaySlide(photo.path, blobUrl, gen);
     updatePhotoInfo(photo);
     recordView(photo.path);
     preloadAhead(idx, 2);
@@ -1631,13 +1634,15 @@ function advanceTo(idx) {
 
   showPreloadBar(true);
   getTempLink(photo.path).then(function(url) {
+    if (gen !== state.slideshowGen) { showPreloadBar(false); return; }
     state.skipCount = 0;
     showPreloadBar(false);
-    displaySlide(photo.path, url);
+    displaySlide(photo.path, url, gen);
     updatePhotoInfo(photo);
     recordView(photo.path);
     preloadAhead(idx, 2);
   }).catch(function(e) {
+    if (gen !== state.slideshowGen) { showPreloadBar(false); return; }
     showPreloadBar(false);
     state.skipCount++;
     console.warn('Skip ' + photo.name + ': ' + e.message);
@@ -1654,7 +1659,7 @@ function advanceTo(idx) {
   });
 }
 
-function displaySlide(path, url) {
+function displaySlide(path, url, gen) {
   var nextSlideId  = state.activeSlide === 'A' ? 'slideB' : 'slideA';
   var currSlideId  = state.activeSlide === 'A' ? 'slideA' : 'slideB';
   var nextImgId    = state.activeSlide === 'A' ? 'imgB'   : 'imgA';
@@ -1673,6 +1678,7 @@ function displaySlide(path, url) {
 
   nextSlide.className = 'slide' + (state.fit === 'cover' ? ' cover' : state.fit === 'stretch' ? ' stretch' : '');
   nextImg.onload = function() {
+    if (gen !== state.slideshowGen) return;
     var nw = nextImg.naturalWidth;
     var nh = nextImg.naturalHeight;
 
@@ -1712,6 +1718,7 @@ function displaySlide(path, url) {
     scheduleNext();
   };
   nextImg.onerror = function() {
+    if (gen !== state.slideshowGen) return;
     delete linkCache[state.photos[state.index].path];
     advanceTo(state.index);
   };
@@ -1777,14 +1784,17 @@ function calendarDayDiff(d1, d2) {
 }
 
 function preloadAhead(fromIdx, count) {
+  var gen = state.slideshowGen;
   for (var i = 1; i <= count; i++) {
     (function(path) {
       if (blobCache[path]) return;
       var needsLink = !linkCache[path] || linkCache[path].expiresAt < Date.now() + 60000;
       var linkPromise = needsLink ? getTempLink(path) : Promise.resolve(linkCache[path].url);
       linkPromise.then(function(url) {
+        if (gen !== state.slideshowGen) return null;
         return fetchBlob(url);
       }).then(function(blob) {
+        if (!blob || gen !== state.slideshowGen) return;
         if (!blobCache[path]) {
           blobCache[path] = URL.createObjectURL(blob);
         }
@@ -1931,6 +1941,7 @@ function togglePause(e) {
 
 function goToFolders(e) {
   e.stopPropagation();
+  state.slideshowGen++;
   clearTimeout(state.timer);
   clearInterval(state.refreshTimer);
   document.getElementById('slideshow').style.display = 'none';
