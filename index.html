@@ -67,13 +67,25 @@
       -webkit-align-items: center; align-items: center;
       gap: 8px; width: 100%; max-width: 520px; margin-bottom: 10px;
     }
+    .pattern-wrap {
+      -webkit-flex: 1; flex: 1; min-width: 0;
+      position: relative;
+    }
     .pattern-input {
-      -webkit-flex: 1; flex: 1;
+      width: 100%; box-sizing: border-box;
       background: #1c1c1e; border: 1px solid #333; color: #fff;
-      padding: 9px 12px; border-radius: 8px; font-size: 13px;
-      -webkit-user-select: text; user-select: text; min-width: 0;
+      padding: 9px 28px 9px 12px; border-radius: 8px; font-size: 13px;
+      -webkit-user-select: text; user-select: text;
     }
     .pattern-input:focus { outline: none; border-color: #1a73e8; }
+    .pattern-clear {
+      position: absolute; right: 6px; top: 50%;
+      -webkit-transform: translateY(-50%); transform: translateY(-50%);
+      background: none; border: none;
+      color: #555; font-size: 15px; cursor: pointer;
+      padding: 0 2px; line-height: 1; display: none;
+    }
+    .pattern-clear:active { color: #ccc; }
     #folderActions {
       display: -webkit-flex; display: flex;
       gap: 8px; width: 100%; max-width: 520px; margin-bottom: 10px;
@@ -347,8 +359,14 @@
   <h2>Select Albums</h2>
   <p class="hint">Tap to select, then start the slideshow</p>
   <div id="patternRow">
-    <input type="text" id="includePatternInput" class="pattern-input" placeholder="Include patterns (comma-separated)" autocorrect="off" autocapitalize="none" spellcheck="false">
-    <input type="text" id="excludePatternInput" class="pattern-input" placeholder="Exclude patterns (comma-separated)" autocorrect="off" autocapitalize="none" spellcheck="false">
+    <div class="pattern-wrap">
+      <input type="text" id="includePatternInput" class="pattern-input" placeholder="Include patterns (comma-separated)" autocorrect="off" autocapitalize="none" spellcheck="false">
+      <button class="pattern-clear" id="clearInclude">✕</button>
+    </div>
+    <div class="pattern-wrap">
+      <input type="text" id="excludePatternInput" class="pattern-input" placeholder="Exclude patterns (comma-separated)" autocorrect="off" autocapitalize="none" spellcheck="false">
+      <button class="pattern-clear" id="clearExclude">✕</button>
+    </div>
   </div>
   <div id="folderActions">
     <button class="btn-fol-action" id="btnSelAll">Select all</button>
@@ -835,6 +853,18 @@ window.onload = function() {
   });
   document.getElementById('includePatternInput').addEventListener('input', updatePatternHighlights);
   document.getElementById('excludePatternInput').addEventListener('input', updatePatternHighlights);
+  document.getElementById('includePatternInput').addEventListener('input', updateClearBtns);
+  document.getElementById('excludePatternInput').addEventListener('input', updateClearBtns);
+  document.getElementById('clearInclude').addEventListener('click', function() {
+    document.getElementById('includePatternInput').value = '';
+    updateClearBtns();
+    updatePatternHighlights();
+  });
+  document.getElementById('clearExclude').addEventListener('click', function() {
+    document.getElementById('excludePatternInput').value = '';
+    updateClearBtns();
+    updatePatternHighlights();
+  });
   document.getElementById('btnSelAll').addEventListener('click', selectAllVisible);
   document.getElementById('btnDeselAll').addEventListener('click', deselectAll);
   document.getElementById('startSlideshow').addEventListener('click', startFromSelected);
@@ -962,6 +992,7 @@ function tryAutostart() {
     var savedPatterns = JSON.parse(localStorage.getItem(LAST_PATTERNS_KEY) || '{}');
     if (savedPatterns.inc) document.getElementById('includePatternInput').value = savedPatterns.inc;
     if (savedPatterns.exc) document.getElementById('excludePatternInput').value = savedPatterns.exc;
+    updateClearBtns();
   } catch(e) {}
 
   if (!lastPaths.length) { loadFolders(''); return; }
@@ -1380,6 +1411,13 @@ function updateStartButton() {
     btn.classList.remove('visible');
   }
   updatePatternHighlights();
+}
+
+function updateClearBtns() {
+  var incVal = document.getElementById('includePatternInput').value;
+  var excVal = document.getElementById('excludePatternInput').value;
+  document.getElementById('clearInclude').style.display = incVal ? 'block' : 'none';
+  document.getElementById('clearExclude').style.display = excVal ? 'block' : 'none';
 }
 
 function updatePatternHighlights() {
