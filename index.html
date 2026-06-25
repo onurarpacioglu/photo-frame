@@ -1516,7 +1516,8 @@ function loadPhotosFromPath(path) {
         var excHit = exc !== '' && patternMatch(exc, parentFolder);
         if (excHit || !incOk) continue;
       }
-      var albumName = photoDir === '' ? 'Root' : parentFolder;
+      var displayDir = (e.path_display || e.path_lower).substring(0, (e.path_display || e.path_lower).lastIndexOf('/'));
+      var albumName = displayDir === '' ? 'Root' : displayDir.split('/').pop();
       var timeTaken = null, w = 0, h = 0;
       if (e.media_info && e.media_info['.tag'] === 'metadata' && e.media_info.metadata) {
         var meta = e.media_info.metadata;
