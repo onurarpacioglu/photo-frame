@@ -1502,7 +1502,6 @@ function startFromSelected() {
 }
 
 function loadPhotosFromPath(path) {
-  var albumName = path === '' ? 'Root' : path.split('/').pop();
   var pattern = document.getElementById('patternInput').value.trim().toLowerCase();
   return listAll(path, [], true).then(function(entries) {
     var orientCache = getOrientationCache();
@@ -1510,10 +1509,12 @@ function loadPhotosFromPath(path) {
     for (var i = 0; i < entries.length; i++) {
       var e = entries[i];
       if (e['.tag'] !== 'file' || !isImage(e.name)) continue;
+      var photoDir = e.path_lower.substring(0, e.path_lower.lastIndexOf('/'));
+      var parentFolder = photoDir.split('/').pop();
       if (pattern) {
-        var parentFolder = e.path_lower.substring(0, e.path_lower.lastIndexOf('/')).split('/').pop();
         if (!patternMatch(pattern, parentFolder)) continue;
       }
+      var albumName = photoDir === '' ? 'Root' : parentFolder;
       var timeTaken = null, w = 0, h = 0;
       if (e.media_info && e.media_info['.tag'] === 'metadata' && e.media_info.metadata) {
         var meta = e.media_info.metadata;
