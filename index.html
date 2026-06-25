@@ -112,8 +112,8 @@
       font-size: 14px; color: #fff; font-weight: 700;
     }
     .folder-row.checked .folder-check { background: #1a73e8; border-color: #1a73e8; }
-    .folder-row.inherited { border-color: #1a73e8; background: #0d1e35; }
-    .folder-row.inherited .folder-check { background: #1a73e8; border-color: #1a73e8; }
+    .folder-row.inherited { border-color: rgba(26,115,232,0.45); background: rgba(13,30,53,0.5); }
+    .folder-row.inherited .folder-check { background: rgba(26,115,232,0.45); border-color: rgba(26,115,232,0.45); }
     .folder-info { -webkit-flex: 1; flex: 1; text-align: left; min-width: 0; }
     .folder-name  { font-size: 16px; font-weight: 500; }
     .folder-sub   { font-size: 12px; color: #666; margin-top: 2px; }
@@ -1250,21 +1250,6 @@ function renderFolders(browsePath, folders) {
 
   document.getElementById('folderBack').style.display = browsePath ? 'block' : 'none';
 
-  // If the current browse location is selected or inherited, promote all visible
-  // subfolders to explicit selections so the count matches visible checkmarks.
-  var browseSelected  = state.selectedPaths.indexOf(browsePath) !== -1;
-  var browseInherited = !browseSelected && browsePath !== '' && isChildOfSelected(browsePath);
-  if (browseInherited && state.selectedPaths.indexOf(browsePath) === -1) {
-    state.selectedPaths.push(browsePath);
-    browseSelected = true;
-  }
-  if (browseSelected) {
-    for (var i = 0; i < folders.length; i++) {
-      var fp = folders[i].path_display;
-      if (state.selectedPaths.indexOf(fp) === -1) state.selectedPaths.push(fp);
-    }
-  }
-
   // Current folder row (to use photos directly here)
   var currentName = browsePath === '' ? 'Root folder' : browsePath.split('/').pop();
   list.appendChild(makeFolderRow(browsePath, currentName, '📂 Photos in this folder', false));
@@ -1340,10 +1325,15 @@ function makeFolderRow(path, name, subtitle, isDrillable) {
       row.classList.remove('inherited');
       check.textContent = '✓';
     } else {
-      // Remove this path and any children that were auto-promoted
-      for (var i = state.selectedPaths.length - 1; i >= 0; i--) {
-        var sp = state.selectedPaths[i];
-        if (sp === path || sp.indexOf(path + '/') === 0) state.selectedPaths.splice(i, 1);
+      if (isDrillable) {
+        // Drillable (top-level) row: cascade deselection to all children
+        for (var i = state.selectedPaths.length - 1; i >= 0; i--) {
+          var sp = state.selectedPaths[i];
+          if (sp === path || sp.indexOf(path + '/') === 0) state.selectedPaths.splice(i, 1);
+        }
+      } else {
+        // Non-drillable "Photos in this folder" row: remove only this path
+        state.selectedPaths.splice(idx, 1);
       }
       row.classList.remove('checked');
       check.textContent = '';
@@ -1394,51 +1384,34 @@ function updateStartButton() {
 function applyPattern(deselect) {
   var raw = document.getElementById('patternInput').value.trim().toLowerCase();
   if (!raw) return;
-  setLoading('Searching…');
-  showScreen('loadingScreen');
-  listAll(state.browsePath, [], true).then(function(entries) {
-    var matched = 0;
-
-    function togglePath(path) {
-      var idx = state.selectedPaths.indexOf(path);
-      if (deselect) {
-        if (idx !== -1) { state.selectedPaths.splice(idx, 1); matched++; }
-      } else {
-        if (idx === -1) { state.selectedPaths.push(path); matched++; }
+  var rows = document.querySelectorAll('#folderList .folder-row');
+  var matched = 0;
+  each(rows, function(row) {
+    var nameEl = row.querySelector('.folder-name');
+    if (!nameEl) return;
+    var path = row.getAttribute('data-path');
+    if (path === null || !patternMatch(raw, nameEl.textContent.toLowerCase())) return;
+    var idx = state.selectedPaths.indexOf(path);
+    var ck = row.querySelector('.folder-check');
+    if (deselect) {
+      if (idx !== -1) {
+        state.selectedPaths.splice(idx, 1);
+        row.classList.remove('checked');
+        if (ck) ck.textContent = '';
+        matched++;
+      }
+    } else {
+      if (idx === -1) {
+        state.selectedPaths.push(path);
+        row.classList.add('checked');
+        row.classList.remove('inherited');
+        if (ck) ck.textContent = '✓';
+        matched++;
       }
     }
-
-    // Check the current browse folder itself
-    if (state.browsePath) {
-      var curName = state.browsePath.split('/').pop().toLowerCase();
-      if (patternMatch(raw, curName)) togglePath(state.browsePath);
-    }
-
-    // Check all subfolders at any depth
-    for (var i = 0; i < entries.length; i++) {
-      var e = entries[i];
-      if (e['.tag'] !== 'folder') continue;
-      if (patternMatch(raw, e.name.toLowerCase())) togglePath(e.path_display);
-    }
-
-    // Refresh check marks on visible rows
-    var rows = document.querySelectorAll('#folderList .folder-row');
-    each(rows, function(row) {
-      var path = row.getAttribute('data-path');
-      if (path === null) return;
-      var sel = state.selectedPaths.indexOf(path) !== -1;
-      row.classList[sel ? 'add' : 'remove']('checked');
-      var ck = row.querySelector('.folder-check');
-      if (ck) ck.textContent = sel ? '✓' : '';
-    });
-
-    updateStartButton();
-    showScreen('folderScreen');
-    if (matched === 0) showError('No ' + (deselect ? 'selected' : 'unselected') + ' folders match "' + raw + '"');
-  }).catch(function(e) {
-    showError(e.message);
-    showScreen('folderScreen');
   });
+  updateStartButton();
+  if (matched === 0) showError('No ' + (deselect ? 'selected' : 'unselected') + ' folders match "' + raw + '"');
 }
 
 function patternMatch(pattern, str) {
@@ -1530,12 +1503,17 @@ function startFromSelected() {
 
 function loadPhotosFromPath(path) {
   var albumName = path === '' ? 'Root' : path.split('/').pop();
+  var pattern = document.getElementById('patternInput').value.trim().toLowerCase();
   return listAll(path, [], true).then(function(entries) {
     var orientCache = getOrientationCache();
     var photos = [];
     for (var i = 0; i < entries.length; i++) {
       var e = entries[i];
       if (e['.tag'] !== 'file' || !isImage(e.name)) continue;
+      if (pattern) {
+        var parentFolder = e.path_lower.substring(0, e.path_lower.lastIndexOf('/')).split('/').pop();
+        if (!patternMatch(pattern, parentFolder)) continue;
+      }
       var timeTaken = null, w = 0, h = 0;
       if (e.media_info && e.media_info['.tag'] === 'metadata' && e.media_info.metadata) {
         var meta = e.media_info.metadata;
