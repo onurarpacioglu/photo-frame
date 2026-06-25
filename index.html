@@ -347,8 +347,8 @@
   <h2>Select Albums</h2>
   <p class="hint">Tap to select, then start the slideshow</p>
   <div id="patternRow">
-    <input type="text" id="includePatternInput" class="pattern-input" placeholder="Enter include pattern" autocorrect="off" autocapitalize="none" spellcheck="false">
-    <input type="text" id="excludePatternInput" class="pattern-input" placeholder="Enter exclude pattern" autocorrect="off" autocapitalize="none" spellcheck="false">
+    <input type="text" id="includePatternInput" class="pattern-input" placeholder="Include patterns (comma-separated)" autocorrect="off" autocapitalize="none" spellcheck="false">
+    <input type="text" id="excludePatternInput" class="pattern-input" placeholder="Exclude patterns (comma-separated)" autocorrect="off" autocapitalize="none" spellcheck="false">
   </div>
   <div id="folderActions">
     <button class="btn-fol-action" id="btnSelAll">Select all</button>
@@ -1394,8 +1394,8 @@ function updatePatternHighlights() {
     var nameEl = row.querySelector('.folder-name');
     if (!nameEl) return;
     var name = nameEl.textContent.toLowerCase();
-    var incOk  = inc === '' || patternMatch(inc, name);
-    var excHit = exc !== '' && patternMatch(exc, name);
+    var incOk  = inc === '' || patternMatchAny(inc, name);
+    var excHit = exc !== '' && patternMatchAny(exc, name);
     row.classList.add((!excHit && incOk) ? 'include-match' : 'exclude-match');
   });
 }
@@ -1412,6 +1412,15 @@ function patternMatch(pattern, str) {
     pos = found + parts[i].length;
   }
   return true;
+}
+
+function patternMatchAny(patternsStr, str) {
+  var patterns = patternsStr.split(',');
+  for (var i = 0; i < patterns.length; i++) {
+    var p = patterns[i].trim();
+    if (p && patternMatch(p, str)) return true;
+  }
+  return false;
 }
 
 function selectAllVisible() {
@@ -1512,8 +1521,8 @@ function loadPhotosFromPath(path) {
       var photoDir = e.path_lower.substring(0, e.path_lower.lastIndexOf('/'));
       var parentFolder = photoDir.split('/').pop();
       if (hasFilter) {
-        var incOk  = inc === '' || patternMatch(inc, parentFolder);
-        var excHit = exc !== '' && patternMatch(exc, parentFolder);
+        var incOk  = inc === '' || patternMatchAny(inc, parentFolder);
+        var excHit = exc !== '' && patternMatchAny(exc, parentFolder);
         if (excHit || !incOk) continue;
       }
       var displayDir = (e.path_display || e.path_lower).substring(0, (e.path_display || e.path_lower).lastIndexOf('/'));
