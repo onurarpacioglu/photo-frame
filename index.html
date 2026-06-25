@@ -67,19 +67,15 @@
       -webkit-align-items: center; align-items: center;
       gap: 8px; width: 100%; max-width: 520px; margin-bottom: 10px;
     }
-    #patternInput {
+    .pattern-input {
       -webkit-flex: 1; flex: 1;
       background: #1c1c1e; border: 1px solid #333; color: #fff;
       padding: 9px 12px; border-radius: 8px; font-size: 13px;
-      -webkit-user-select: text; user-select: text;
+      -webkit-user-select: text; user-select: text; min-width: 0;
     }
-    #patternInput:focus { outline: none; border-color: #1a73e8; }
-    .btn-pattern {
-      background: #2c2c2e; color: #1a73e8; border: 1px solid #1a73e8;
-      padding: 9px 12px; border-radius: 8px; font-size: 13px;
-      cursor: pointer; white-space: nowrap;
-    }
-    .btn-pattern:active { background: #0d2e4e; }
+    .pattern-input:focus { outline: none; border-color: #1a73e8; }
+    .folder-row.include-match { background: rgba(34,197,94,0.15); border-color: rgba(34,197,94,0.6); }
+    .folder-row.exclude-match { background: rgba(239,68,68,0.15);  border-color: rgba(239,68,68,0.6); }
     #folderActions {
       display: -webkit-flex; display: flex;
       gap: 8px; width: 100%; max-width: 520px; margin-bottom: 10px;
@@ -351,9 +347,8 @@
   <h2>Select Albums</h2>
   <p class="hint">Tap to select, then start the slideshow</p>
   <div id="patternRow">
-    <input type="text" id="patternInput" placeholder="Filter by name…" autocorrect="off" autocapitalize="none" spellcheck="false">
-    <button id="btnCheckPattern" class="btn-pattern">Select</button>
-    <button id="btnUncheckPattern" class="btn-pattern">Unselect</button>
+    <input type="text" id="includePatternInput" class="pattern-input" placeholder="Enter include pattern" autocorrect="off" autocapitalize="none" spellcheck="false">
+    <input type="text" id="excludePatternInput" class="pattern-input" placeholder="Enter exclude pattern" autocorrect="off" autocapitalize="none" spellcheck="false">
   </div>
   <div id="folderActions">
     <button class="btn-fol-action" id="btnSelAll">Select all</button>
@@ -836,11 +831,8 @@ window.onload = function() {
     var parent = parentPath(state.browsePath);
     if (parent !== null) loadFolders(parent);
   });
-  document.getElementById('btnCheckPattern').addEventListener('click', function() { applyPattern(false); });
-  document.getElementById('btnUncheckPattern').addEventListener('click', function() { applyPattern(true); });
-  document.getElementById('patternInput').addEventListener('keydown', function(e) {
-    if (e.keyCode === 13) applyPattern(false);
-  });
+  document.getElementById('includePatternInput').addEventListener('input', updatePatternHighlights);
+  document.getElementById('excludePatternInput').addEventListener('input', updatePatternHighlights);
   document.getElementById('btnSelAll').addEventListener('click', selectAllVisible);
   document.getElementById('btnDeselAll').addEventListener('click', deselectAll);
   document.getElementById('startSlideshow').addEventListener('click', startFromSelected);
@@ -1379,40 +1371,29 @@ function updateStartButton() {
   } else {
     btn.classList.remove('visible');
   }
+  updatePatternHighlights();
 }
 
-function applyPattern(deselect) {
-  var raw = document.getElementById('patternInput').value.trim().toLowerCase();
-  if (!raw) return;
+function updatePatternHighlights() {
+  var inc = document.getElementById('includePatternInput').value.trim().toLowerCase();
+  var exc = document.getElementById('excludePatternInput').value.trim().toLowerCase();
+  var hasFilter = inc !== '' || exc !== '';
   var rows = document.querySelectorAll('#folderList .folder-row');
-  var matched = 0;
   each(rows, function(row) {
+    row.classList.remove('include-match');
+    row.classList.remove('exclude-match');
+    if (!hasFilter) return;
+    var isSelected = row.classList.contains('checked') || row.classList.contains('inherited');
+    if (!isSelected) return;
     var nameEl = row.querySelector('.folder-name');
     if (!nameEl) return;
-    var path = row.getAttribute('data-path');
-    if (path === null || !patternMatch(raw, nameEl.textContent.toLowerCase())) return;
-    var idx = state.selectedPaths.indexOf(path);
-    var ck = row.querySelector('.folder-check');
-    if (deselect) {
-      if (idx !== -1) {
-        state.selectedPaths.splice(idx, 1);
-        row.classList.remove('checked');
-        if (ck) ck.textContent = '';
-        matched++;
-      }
-    } else {
-      if (idx === -1) {
-        state.selectedPaths.push(path);
-        row.classList.add('checked');
-        row.classList.remove('inherited');
-        if (ck) ck.textContent = '✓';
-        matched++;
-      }
-    }
+    var name = nameEl.textContent.toLowerCase();
+    var incOk  = inc === '' || patternMatch(inc, name);
+    var excHit = exc !== '' && patternMatch(exc, name);
+    row.classList.add((!excHit && incOk) ? 'include-match' : 'exclude-match');
   });
-  updateStartButton();
-  if (matched === 0) showError('No ' + (deselect ? 'selected' : 'unselected') + ' folders match "' + raw + '"');
 }
+
 
 function patternMatch(pattern, str) {
   if (pattern.indexOf('*') === -1) return str.indexOf(pattern) !== -1;
@@ -1442,10 +1423,17 @@ function selectAllVisible() {
 }
 
 function deselectAll() {
-  state.selectedPaths = [];
+  var prefix = state.browsePath;
+  for (var i = state.selectedPaths.length - 1; i >= 0; i--) {
+    var p = state.selectedPaths[i];
+    if (prefix === '' || p === prefix || p.indexOf(prefix + '/') === 0) {
+      state.selectedPaths.splice(i, 1);
+    }
+  }
   var rows = document.querySelectorAll('#folderList .folder-row');
   each(rows, function(row) {
     row.classList.remove('checked');
+    row.classList.remove('inherited');
     var ck = row.querySelector('.folder-check');
     if (ck) ck.textContent = '';
   });
@@ -1502,7 +1490,9 @@ function startFromSelected() {
 }
 
 function loadPhotosFromPath(path) {
-  var pattern = document.getElementById('patternInput').value.trim().toLowerCase();
+  var inc = document.getElementById('includePatternInput').value.trim().toLowerCase();
+  var exc = document.getElementById('excludePatternInput').value.trim().toLowerCase();
+  var hasFilter = inc !== '' || exc !== '';
   return listAll(path, [], true).then(function(entries) {
     var orientCache = getOrientationCache();
     var photos = [];
@@ -1511,8 +1501,10 @@ function loadPhotosFromPath(path) {
       if (e['.tag'] !== 'file' || !isImage(e.name)) continue;
       var photoDir = e.path_lower.substring(0, e.path_lower.lastIndexOf('/'));
       var parentFolder = photoDir.split('/').pop();
-      if (pattern) {
-        if (!patternMatch(pattern, parentFolder)) continue;
+      if (hasFilter) {
+        var incOk  = inc === '' || patternMatch(inc, parentFolder);
+        var excHit = exc !== '' && patternMatch(exc, parentFolder);
+        if (excHit || !incOk) continue;
       }
       var albumName = photoDir === '' ? 'Root' : parentFolder;
       var timeTaken = null, w = 0, h = 0;
