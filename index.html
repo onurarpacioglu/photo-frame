@@ -1250,6 +1250,21 @@ function renderFolders(browsePath, folders) {
 
   document.getElementById('folderBack').style.display = browsePath ? 'block' : 'none';
 
+  // If the current browse location is selected or inherited, promote all visible
+  // subfolders to explicit selections so the count matches visible checkmarks.
+  var browseSelected  = state.selectedPaths.indexOf(browsePath) !== -1;
+  var browseInherited = !browseSelected && browsePath !== '' && isChildOfSelected(browsePath);
+  if (browseInherited && state.selectedPaths.indexOf(browsePath) === -1) {
+    state.selectedPaths.push(browsePath);
+    browseSelected = true;
+  }
+  if (browseSelected) {
+    for (var i = 0; i < folders.length; i++) {
+      var fp = folders[i].path_display;
+      if (state.selectedPaths.indexOf(fp) === -1) state.selectedPaths.push(fp);
+    }
+  }
+
   // Current folder row (to use photos directly here)
   var currentName = browsePath === '' ? 'Root folder' : browsePath.split('/').pop();
   list.appendChild(makeFolderRow(browsePath, currentName, '📂 Photos in this folder', false));
@@ -1322,11 +1337,27 @@ function makeFolderRow(path, name, subtitle, isDrillable) {
     if (idx === -1) {
       state.selectedPaths.push(path);
       row.classList.add('checked');
+      row.classList.remove('inherited');
       check.textContent = '✓';
     } else {
-      state.selectedPaths.splice(idx, 1);
+      // Remove this path and any children that were auto-promoted
+      for (var i = state.selectedPaths.length - 1; i >= 0; i--) {
+        var sp = state.selectedPaths[i];
+        if (sp === path || sp.indexOf(path + '/') === 0) state.selectedPaths.splice(i, 1);
+      }
       row.classList.remove('checked');
       check.textContent = '';
+      // Clear checkmarks on any now-deselected visible rows
+      var allRows = document.querySelectorAll('#folderList .folder-row');
+      each(allRows, function(r) {
+        var rp = r.getAttribute('data-path');
+        if (rp !== null && state.selectedPaths.indexOf(rp) === -1) {
+          r.classList.remove('checked');
+          r.classList.remove('inherited');
+          var ck = r.querySelector('.folder-check');
+          if (ck) ck.textContent = '';
+        }
+      });
     }
     updateStartButton();
   });
