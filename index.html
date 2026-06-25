@@ -460,7 +460,8 @@ var STORAGE_ENC_KEY = 'pfenctoken'; // encrypted refresh token from first-run se
 var PKCE_KEY      = 'pfpkce';       // temporary PKCE code verifier across redirect
 var SETTINGS_KEY  = 'pfsettings';
 var HISTORY_KEY   = 'pfhistory';
-var LAST_PATHS_KEY = 'pflastpaths';
+var LAST_PATHS_KEY    = 'pflastpaths';
+var LAST_PATTERNS_KEY = 'pflastpatterns';
 var ORIENT_KEY    = 'pforient';    // orientation dimensions cache
 
 // ── RC4 decryption ───────────────────────────────────────
@@ -956,6 +957,11 @@ function tryAutostart() {
     var raw = localStorage.getItem(LAST_PATHS_KEY);
     if (raw) lastPaths = JSON.parse(raw);
   } catch(e) {}
+  try {
+    var savedPatterns = JSON.parse(localStorage.getItem(LAST_PATTERNS_KEY) || '{}');
+    if (savedPatterns.inc) document.getElementById('includePatternInput').value = savedPatterns.inc;
+    if (savedPatterns.exc) document.getElementById('excludePatternInput').value = savedPatterns.exc;
+  } catch(e) {}
 
   if (!lastPaths.length) { loadFolders(''); return; }
 
@@ -1444,6 +1450,10 @@ function deselectAll() {
 function startFromSelected() {
   if (!state.selectedPaths.length) return;
   try { localStorage.setItem(LAST_PATHS_KEY, JSON.stringify(state.selectedPaths)); } catch(e) {}
+  try { localStorage.setItem(LAST_PATTERNS_KEY, JSON.stringify({
+    inc: document.getElementById('includePatternInput').value,
+    exc: document.getElementById('excludePatternInput').value
+  })); } catch(e) {}
   showScreen('loadingScreen');
   setLoading('Loading photos…');
 
