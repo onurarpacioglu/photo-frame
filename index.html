@@ -434,6 +434,9 @@
       </select>
     </div>
 
+    <div class="s-section">Startup</div>
+    <label class="s-toggle"><input type="checkbox" id="autostartCb"><span>Autostart slideshow</span></label>
+
     <div class="signout-row">
       <button class="btn-signout" id="btnSignOut">Sign Out &amp; Forget</button>
     </div>
@@ -459,6 +462,7 @@ var STORAGE_ENC_KEY = 'pfenctoken'; // encrypted refresh token from first-run se
 var PKCE_KEY      = 'pfpkce';       // temporary PKCE code verifier across redirect
 var SETTINGS_KEY  = 'pfsettings';
 var HISTORY_KEY   = 'pfhistory';
+var LAST_PATHS_KEY = 'pflastpaths';
 
 // ── RC4 decryption ───────────────────────────────────────
 function rc4ksa(key) {
@@ -652,6 +656,7 @@ var state = {
   showPhotoInfo:   false,
   autoRefresh:     false,
   refreshInterval: 600000,
+  autostart:       true,
   selectedPaths:   [],
   browsePath:      '',
   skipCount:       0,
@@ -708,7 +713,8 @@ function saveSettings() {
       showClock:       state.showClock,
       showPhotoInfo:   state.showPhotoInfo,
       autoRefresh:     state.autoRefresh,
-      refreshInterval: state.refreshInterval
+      refreshInterval: state.refreshInterval,
+      autostart:       state.autostart
     }));
   } catch(e) {}
 }
@@ -730,6 +736,7 @@ function loadSettings() {
     if (typeof s.showPhotoInfo === 'boolean') state.showPhotoInfo = s.showPhotoInfo;
     if (typeof s.autoRefresh   === 'boolean') state.autoRefresh   = s.autoRefresh;
     if (s.refreshInterval) state.refreshInterval = s.refreshInterval;
+    if (typeof s.autostart     === 'boolean') state.autostart     = s.autostart;
   } catch(e) {}
 }
 
@@ -748,6 +755,7 @@ function syncSettingsUI() {
   document.getElementById('refreshIntervalSel').value = String(state.refreshInterval);
   document.getElementById('refreshIntervalRow').className =
     's-row' + (state.autoRefresh ? ' active' : '');
+  document.getElementById('autostartCb').checked      = state.autostart;
 }
 
 // ── View history ─────────────────────────────────────────
@@ -838,6 +846,7 @@ window.onload = function() {
   document.getElementById('showInfoCb').addEventListener('change', applyShowPhotoInfo);
   document.getElementById('autoRefreshCb').addEventListener('change', applyAutoRefresh);
   document.getElementById('refreshIntervalSel').addEventListener('change', applyRefreshInterval);
+  document.getElementById('autostartCb').addEventListener('change', applyAutostart);
   document.getElementById('btnSignOut').addEventListener('click', signOut);
 
   // Detect PKCE redirect back from Dropbox (?code=...)
@@ -899,7 +908,7 @@ function tryAutoConnect() {
     setLoading('Connecting…');
     showScreen('loadingScreen');
     refreshAccessToken().then(function() {
-      loadFolders('');
+      if (state.autostart) { tryAutostart(); } else { loadFolders(''); }
     }).catch(function(e) {
       try { localStorage.removeItem(STORAGE_KEY); } catch(e2) {}
       state.refreshToken = null;
@@ -909,6 +918,86 @@ function tryAutoConnect() {
     return;
   }
   showTokenScreen();
+}
+
+function tryAutostart() {
+  var lastPaths = [];
+  try {
+    var raw = localStorage.getItem(LAST_PATHS_KEY);
+    if (raw) lastPaths = JSON.parse(raw);
+  } catch(e) {}
+
+  if (!lastPaths.length) { loadFolders(''); return; }
+
+  setLoading('Checking albums…');
+  showScreen('loadingScreen');
+
+  var checks = [];
+  for (var i = 0; i < lastPaths.length; i++) {
+    (function(path) {
+      if (path === '') {
+        // Root folder always exists
+        checks.push(Promise.resolve(path));
+      } else {
+        checks.push(
+          dbxPost('/files/get_metadata', { path: path })
+            .then(function(res) { return (res && res['.tag'] === 'folder') ? path : null; })
+            .catch(function() { return null; })
+        );
+      }
+    })(lastPaths[i]);
+  }
+
+  Promise.all(checks).then(function(results) {
+    var validPaths = [];
+    for (var i = 0; i < results.length; i++) {
+      if (results[i] !== null) validPaths.push(results[i]);
+    }
+
+    if (!validPaths.length) {
+      try { localStorage.removeItem(LAST_PATHS_KEY); } catch(e) {}
+      loadFolders('');
+      return;
+    }
+
+    try { localStorage.setItem(LAST_PATHS_KEY, JSON.stringify(validPaths)); } catch(e) {}
+    state.selectedPaths = validPaths;
+    setLoading('Loading photos…');
+
+    var promises = [];
+    for (var i = 0; i < validPaths.length; i++) {
+      promises.push(loadPhotosFromPath(validPaths[i]));
+    }
+
+    Promise.all(promises).then(function(albumResults) {
+      var allPhotos;
+      if (state.albumOrder === 'sequential') {
+        allPhotos = [];
+        for (var i = 0; i < albumResults.length; i++) {
+          var sorted = sortPhotos(albumResults[i]);
+          for (var j = 0; j < sorted.length; j++) allPhotos.push(sorted[j]);
+        }
+      } else {
+        allPhotos = [];
+        for (var i = 0; i < albumResults.length; i++) {
+          for (var j = 0; j < albumResults[i].length; j++) allPhotos.push(albumResults[i][j]);
+        }
+        allPhotos = sortPhotos(allPhotos);
+      }
+
+      if (!allPhotos.length) { loadFolders(''); return; }
+
+      state.allPhotos = allPhotos;
+      state.photos    = filterByOrientation(allPhotos);
+      state.index     = 0;
+      state.skipCount = 0;
+      linkCache       = {};
+      startSlideshow();
+    }).catch(function(e) {
+      showError(e.message);
+      setTimeout(function() { loadFolders(''); }, 3000);
+    });
+  }).catch(function() { loadFolders(''); });
 }
 
 function signOut() {
@@ -1026,6 +1115,7 @@ function clearToken() {
   if (slideBlobUrls.B) { URL.revokeObjectURL(slideBlobUrls.B); slideBlobUrls.B = null; }
   slidePhotoPaths.A = null; slidePhotoPaths.B = null;
   try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
+  try { localStorage.removeItem(LAST_PATHS_KEY); } catch(e) {}
   document.getElementById('slideshow').style.display = 'none';
   document.getElementById('slideA').classList.remove('active');
   document.getElementById('slideB').classList.remove('active');
@@ -1272,6 +1362,7 @@ function deselectAll() {
 // ── Load Photos ──────────────────────────────────────────
 function startFromSelected() {
   if (!state.selectedPaths.length) return;
+  try { localStorage.setItem(LAST_PATHS_KEY, JSON.stringify(state.selectedPaths)); } catch(e) {}
   showScreen('loadingScreen');
   setLoading('Loading photos…');
 
@@ -1795,6 +1886,11 @@ function applyAutoRefresh() {
 function applyRefreshInterval() {
   state.refreshInterval = parseInt(document.getElementById('refreshIntervalSel').value);
   startAutoRefresh();
+  saveSettings();
+}
+
+function applyAutostart() {
+  state.autostart = document.getElementById('autostartCb').checked;
   saveSettings();
 }
 
