@@ -1655,7 +1655,7 @@ function advanceTo(idx) {
     updatePhotoInfo(photo);
     recordView(photo.path);
     scheduleNext();
-    preloadAhead(idx, 2);
+    preloadAhead(idx, 1);
     return;
   }
 
@@ -1666,7 +1666,7 @@ function advanceTo(idx) {
     displaySlide(photo.path, blobUrl, gen);
     updatePhotoInfo(photo);
     recordView(photo.path);
-    preloadAhead(idx, 2);
+    preloadAhead(idx, 1);
     return;
   }
 
@@ -1678,7 +1678,7 @@ function advanceTo(idx) {
     displaySlide(photo.path, url, gen);
     updatePhotoInfo(photo);
     recordView(photo.path);
-    preloadAhead(idx, 2);
+    preloadAhead(idx, 1);
   }).catch(function(e) {
     if (gen !== state.slideshowGen) { showPreloadBar(false); return; }
     showPreloadBar(false);
@@ -1754,6 +1754,12 @@ function displaySlide(path, url, gen) {
     currSlide.classList.remove('active');
     state.activeSlide = (nextSlideId === 'slideA') ? 'A' : 'B';
     scheduleNext();
+    // Release decoded bitmap of the now-hidden slide after transition ends
+    var oldImgId = (nextSlideId === 'slideA') ? 'imgB' : 'imgA';
+    setTimeout(function() {
+      if (gen !== state.slideshowGen) return;
+      document.getElementById(oldImgId).src = '';
+    }, 2000);
   };
   nextImg.onerror = function() {
     if (gen !== state.slideshowGen) return;
@@ -1857,11 +1863,20 @@ function fetchBlob(url) {
   });
 }
 
+function pruneLinkCache() {
+  var now = Date.now();
+  var keys = Object.keys(linkCache);
+  for (var i = 0; i < keys.length; i++) {
+    if (linkCache[keys[i]].expiresAt < now) delete linkCache[keys[i]];
+  }
+}
+
 function getTempLink(path) {
   var cached = linkCache[path];
   if (cached && cached.expiresAt > Date.now() + 10 * 60 * 1000) {
     return Promise.resolve(cached.url);
   }
+  pruneLinkCache();
   return dbxPost('/files/get_temporary_link', { path: path })
     .then(function(res) {
       linkCache[path] = { url: res.link, expiresAt: Date.now() + 4 * 60 * 60 * 1000 };
@@ -1982,6 +1997,14 @@ function goToFolders(e) {
   state.slideshowGen++;
   clearTimeout(state.timer);
   clearInterval(state.refreshTimer);
+  var blobKeys = Object.keys(blobCache);
+  for (var i = 0; i < blobKeys.length; i++) URL.revokeObjectURL(blobCache[blobKeys[i]]);
+  blobCache = {};
+  if (slideBlobUrls.A) { URL.revokeObjectURL(slideBlobUrls.A); slideBlobUrls.A = null; }
+  if (slideBlobUrls.B) { URL.revokeObjectURL(slideBlobUrls.B); slideBlobUrls.B = null; }
+  slidePhotoPaths.A = null; slidePhotoPaths.B = null;
+  document.getElementById('imgA').src = '';
+  document.getElementById('imgB').src = '';
   document.getElementById('slideshow').style.display = 'none';
   document.getElementById('slideA').classList.remove('active');
   document.getElementById('slideB').classList.remove('active');
