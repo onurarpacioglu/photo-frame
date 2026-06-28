@@ -1754,14 +1754,6 @@ function displaySlide(path, url, gen) {
     currSlide.classList.remove('active');
     state.activeSlide = (nextSlideId === 'slideA') ? 'A' : 'B';
     scheduleNext();
-    // Release decoded bitmap of the now-hidden slide after transition ends
-    var oldImgId   = (nextSlideId === 'slideA') ? 'imgB'  : 'imgA';
-    var oldSlideKey = (nextSlideId === 'slideA') ? 'B' : 'A';
-    setTimeout(function() {
-      if (gen !== state.slideshowGen) return;
-      document.getElementById(oldImgId).src = '';
-      slidePhotoPaths[oldSlideKey] = null;
-    }, 2000);
   };
   nextImg.onerror = function() {
     if (gen !== state.slideshowGen) return;
