@@ -482,6 +482,18 @@ var LAST_PATHS_KEY    = 'pflastpaths';
 var LAST_PATTERNS_KEY = 'pflastpatterns';
 var ORIENT_KEY    = 'pforient';    // orientation dimensions cache
 
+// ── Global error surfacing (diagnostic) ──────────────────
+window.onerror = function(msg, src, line, col, err) {
+  console.error('Uncaught error:', msg, src, line, col, err);
+  showError('Script error: ' + msg + ' (' + line + ')');
+  return false;
+};
+window.addEventListener('unhandledrejection', function(e) {
+  var msg = (e.reason && e.reason.message) ? e.reason.message : String(e.reason);
+  console.error('Unhandled rejection:', e.reason);
+  showError('Unhandled error: ' + msg);
+});
+
 // ── RC4 decryption ───────────────────────────────────────
 function rc4ksa(key) {
   var S = [];
@@ -1757,7 +1769,18 @@ function displaySlide(path, url, gen) {
   };
   nextImg.onerror = function() {
     if (gen !== state.slideshowGen) return;
-    delete linkCache[state.photos[state.index].path];
+    delete linkCache[path];
+    state.skipCount++;
+    console.warn('Image failed to decode: ' + path);
+    if (state.skipCount >= state.photos.length) {
+      state.skipCount = 0;
+      clearTimeout(state.timer);
+      document.getElementById('slideshow').style.display = 'none';
+      showError('Could not load any photos. Your token may lack "files.content.read" permission.');
+      setTimeout(function() { clearToken(); }, 4000);
+      return;
+    }
+    state.index = (state.index + 1) % state.photos.length;
     advanceTo(state.index);
   };
   nextImg.src = url;
