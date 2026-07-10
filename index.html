@@ -408,6 +408,7 @@
     <label class="s-toggle"><input type="checkbox" id="showPortraitCb" checked><span>Portrait photos</span></label>
     <label class="s-toggle"><input type="checkbox" id="showLandscapeCb" checked><span>Landscape photos</span></label>
     <label class="s-toggle"><input type="checkbox" id="showClockCb"><span>Show clock</span></label>
+    <label class="s-toggle"><input type="checkbox" id="clock24hCb"><span>24-hour clock</span></label>
     <label class="s-toggle"><input type="checkbox" id="showInfoCb"><span>Photo info</span></label>
 
     <div class="s-section">Timing</div>
@@ -683,6 +684,7 @@ var state = {
   showPortrait:    true,
   showLandscape:   true,
   showClock:       false,
+  clock24h:        false,
   showPhotoInfo:   false,
   autoRefresh:     false,
   refreshInterval: 600000,
@@ -742,6 +744,7 @@ function saveSettings() {
       showPortrait:    state.showPortrait,
       showLandscape:   state.showLandscape,
       showClock:       state.showClock,
+      clock24h:        state.clock24h,
       showPhotoInfo:   state.showPhotoInfo,
       autoRefresh:     state.autoRefresh,
       refreshInterval: state.refreshInterval,
@@ -764,6 +767,7 @@ function loadSettings() {
     if (typeof s.showPortrait  === 'boolean') state.showPortrait  = s.showPortrait;
     if (typeof s.showLandscape === 'boolean') state.showLandscape = s.showLandscape;
     if (typeof s.showClock     === 'boolean') state.showClock     = s.showClock;
+    if (typeof s.clock24h      === 'boolean') state.clock24h      = s.clock24h;
     if (typeof s.showPhotoInfo === 'boolean') state.showPhotoInfo = s.showPhotoInfo;
     if (typeof s.autoRefresh   === 'boolean') state.autoRefresh   = s.autoRefresh;
     if (s.refreshInterval) state.refreshInterval = s.refreshInterval;
@@ -781,6 +785,7 @@ function syncSettingsUI() {
   document.getElementById('showPortraitCb').checked   = state.showPortrait;
   document.getElementById('showLandscapeCb').checked  = state.showLandscape;
   document.getElementById('showClockCb').checked      = state.showClock;
+  document.getElementById('clock24hCb').checked       = state.clock24h;
   document.getElementById('showInfoCb').checked       = state.showPhotoInfo;
   document.getElementById('autoRefreshCb').checked    = state.autoRefresh;
   document.getElementById('refreshIntervalSel').value = String(state.refreshInterval);
@@ -917,6 +922,7 @@ window.onload = function() {
   document.getElementById('showPortraitCb').addEventListener('change', applyShowPortrait);
   document.getElementById('showLandscapeCb').addEventListener('change', applyShowLandscape);
   document.getElementById('showClockCb').addEventListener('change', applyShowClock);
+  document.getElementById('clock24hCb').addEventListener('change', applyClock24h);
   document.getElementById('showInfoCb').addEventListener('change', applyShowPhotoInfo);
   document.getElementById('autoRefreshCb').addEventListener('change', applyAutoRefresh);
   document.getElementById('refreshIntervalSel').addEventListener('change', applyRefreshInterval);
@@ -1914,9 +1920,15 @@ function startClock() {
 function updateClock() {
   var d = new Date();
   var h = d.getHours(), m = d.getMinutes();
-  var ampm = h >= 12 ? 'PM' : 'AM';
-  h = h % 12 || 12;
-  document.getElementById('clock').textContent = h + ':' + (m < 10 ? '0' + m : m) + ' ' + ampm;
+  var text;
+  if (state.clock24h) {
+    text = (h < 10 ? '0' + h : h) + ':' + (m < 10 ? '0' + m : m);
+  } else {
+    var ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 || 12;
+    text = h + ':' + (m < 10 ? '0' + m : m) + ' ' + ampm;
+  }
+  document.getElementById('clock').textContent = text;
 }
 
 // ── Photo info ───────────────────────────────────────────
@@ -2108,6 +2120,12 @@ function applyShowLandscape() {
 function applyShowClock() {
   state.showClock = document.getElementById('showClockCb').checked;
   startClock();
+  saveSettings();
+}
+
+function applyClock24h() {
+  state.clock24h = document.getElementById('clock24hCb').checked;
+  if (state.showClock) updateClock();
   saveSettings();
 }
 
