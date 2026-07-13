@@ -723,7 +723,8 @@ var state = {
   slideshowGen:    0,
   offlineBehavior: 'disabled', // 'disabled' | 'whenNotConnected' | 'always'
   isOffline:       false,      // detected connectivity state (whenNotConnected mode)
-  offlinePoolIdx:  0           // pointer into the offline-replay candidate pool
+  offlinePoolIdx:  0,          // pointer into the offline-replay candidate pool
+  offlineFailStreak: 0         // consecutive offline-replay failures without a success
 };
 
 var linkCache = {};
@@ -962,6 +963,7 @@ function inOfflineReplay() {
 function setOffline(val) {
   if (state.isOffline === val) return;
   state.isOffline = val;
+  state.offlineFailStreak = 0;
   if (state.offlineBehavior === 'whenNotConnected') {
     showToast(val ? 'Offline — showing cached photos' : 'Back online');
   }
@@ -1848,6 +1850,11 @@ function advanceTo(idx) {
 // - otherwise: try any already-known link first (session or persisted), only
 //   minting a fresh one when needed, and never touching the network while
 //   confirmed offline.
+//
+// Known-link attempts go through the same native <img> load as everything
+// else (not an XHR probe): whatever caching/offline behavior a browser
+// applies to image loads only applies there, not to a script-initiated
+// fetch, so an XHR-based probe can't reliably stand in for it.
 function resolveAndShow(photo, idx, gen) {
   var path = photo.path;
 
@@ -1868,12 +1875,10 @@ function resolveAndShow(photo, idx, gen) {
     return;
   }
 
-  var afterSuccess = function(blob) {
-    if (gen !== state.slideshowGen) { showPreloadBar(false); return; }
+  var onSuccess = function() {
     state.skipCount = 0;
+    state.offlineFailStreak = 0;
     showPreloadBar(false);
-    var blobUrl = URL.createObjectURL(blob);
-    displaySlide(path, blobUrl, gen);
     updatePhotoInfo(photo);
     recordView(path);
     if (!inOfflineReplay()) preloadAhead(idx, 1);
@@ -1884,8 +1889,12 @@ function resolveAndShow(photo, idx, gen) {
   if (inOfflineReplay()) {
     if (!known) { advanceOfflinePool(gen, 1); return; }
     showPreloadBar(true);
-    fetchBlob(known).then(afterSuccess).catch(function() {
-      forgetLink(path);
+    displaySlide(path, known, gen, onSuccess, function() {
+      // A single failed offline attempt does NOT prove the browser's disk
+      // cache lacks this photo — some browsers simply fail every request
+      // outright when offline, with no stale-cache fallback at all. Don't
+      // delete the record; just skip this candidate for now.
+      state.offlineFailStreak++;
       showPreloadBar(false);
       advanceOfflinePool(gen, 1);
     });
@@ -1894,16 +1903,15 @@ function resolveAndShow(photo, idx, gen) {
 
   if (known) {
     showPreloadBar(true);
-    fetchBlob(known).then(afterSuccess).catch(function(e) {
-      if (e && e.kind === 'network') {
-        setOffline(true);
+    displaySlide(path, known, gen, onSuccess, function() {
+      if (state.isOffline) {
         showPreloadBar(false);
         advanceOfflinePool(gen, 1);
         return;
       }
-      // Online, but this particular link is dead — don't let getTempLink
-      // trivially hand the same stale URL back; force a real fetch.
-      delete linkCache[path];
+      // Online, but this particular link is dead — forget it and mint a
+      // real fresh one rather than retrying the same stale URL.
+      forgetLink(path);
       fetchFreshLink();
     });
     return;
@@ -1914,11 +1922,11 @@ function resolveAndShow(photo, idx, gen) {
   function fetchFreshLink() {
     showPreloadBar(true);
     getTempLink(path).then(function(url) {
-      if (gen !== state.slideshowGen) { showPreloadBar(false); return null; }
-      return fetchBlob(url);
-    }).then(function(blob) {
-      if (!blob) return;
-      afterSuccess(blob);
+      if (gen !== state.slideshowGen) { showPreloadBar(false); return; }
+      displaySlide(path, url, gen, onSuccess, function() {
+        showPreloadBar(false);
+        handleAdvanceFailure(photo, idx, gen);
+      });
     }).catch(function(e) {
       showPreloadBar(false);
       if (e && e.kind === 'network') { setOffline(true); advanceOfflinePool(gen, 1); return; }
@@ -1972,7 +1980,8 @@ function offlineCandidates() {
 function advanceOfflinePool(gen, dir) {
   if (gen !== state.slideshowGen) return;
   var pool = offlineCandidates();
-  if (!pool.length) {
+  if (!pool.length || state.offlineFailStreak >= pool.length) {
+    state.offlineFailStreak = 0;
     showToast('No cached photos available — waiting for connection');
     clearTimeout(state.timer);
     state.timer = setTimeout(function() {
@@ -1991,7 +2000,7 @@ function advanceOfflinePool(gen, dir) {
   resolveAndShow(photo, idx, gen);
 }
 
-function displaySlide(path, url, gen) {
+function displaySlide(path, url, gen, onSuccess, onError) {
   var nextSlideId  = state.activeSlide === 'A' ? 'slideB' : 'slideA';
   var currSlideId  = state.activeSlide === 'A' ? 'slideA' : 'slideB';
   var nextImgId    = state.activeSlide === 'A' ? 'imgB'   : 'imgA';
@@ -2047,11 +2056,16 @@ function displaySlide(path, url, gen) {
     nextSlide.classList.add('active');
     currSlide.classList.remove('active');
     state.activeSlide = (nextSlideId === 'slideA') ? 'A' : 'B';
+    if (onSuccess) onSuccess();
     scheduleNext();
   };
   nextImg.onerror = function() {
     if (gen !== state.slideshowGen) return;
     console.warn('Image failed to decode: ' + path);
+    if (onError) { onError(); return; }
+    // No caller-supplied handler means this was a confirmed-fetched URL
+    // (freshly minted, or already-downloaded blob bytes) that still failed
+    // to decode — a genuinely broken photo, not an ambiguous offline case.
     forgetLink(path);
     var idx = 0, failedPhoto = null;
     for (var i = 0; i < state.photos.length; i++) {
