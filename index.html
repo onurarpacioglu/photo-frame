@@ -278,6 +278,15 @@
       max-width: 88vw; text-align: center; line-height: 1.5;
     }
 
+    /* Toast (offline/online transitions, etc.) */
+    #toastBanner {
+      position: fixed; top: 20px; left: 50%;
+      -webkit-transform: translateX(-50%); transform: translateX(-50%);
+      background: rgba(40,40,42,0.97); color: #fff; padding: 10px 20px; border-radius: 8px;
+      font-size: 14px; z-index: 100; display: none;
+      max-width: 88vw; text-align: center; line-height: 1.5;
+    }
+
     /* Remember me */
     .remember-row {
       display: -webkit-flex; display: flex;
@@ -451,6 +460,20 @@
       </select>
     </div>
 
+    <div class="s-section">Offline</div>
+    <div class="s-row">
+      <span>Offline behavior</span>
+      <select id="offlineBehaviorSel">
+        <option value="disabled" selected>Disabled</option>
+        <option value="whenNotConnected">When Not Connected</option>
+        <option value="always">Always</option>
+      </select>
+    </div>
+    <div class="s-row" style="margin-bottom:6px">
+      <span id="offlineCacheCount" style="color:#666;font-size:12px">0 links cached</span>
+    </div>
+    <button class="btn-signout" id="btnDeleteOfflineCache" style="margin-bottom:10px">Delete Offline Cache</button>
+
     <div class="s-section">Startup</div>
     <label class="s-toggle"><input type="checkbox" id="autostartCb"><span>Autostart slideshow</span></label>
 
@@ -463,6 +486,7 @@
 </div>
 
 <div id="errorBanner"></div>
+<div id="toastBanner"></div>
 
 <script>
 // ── PASTE YOUR ENCRYPTED REFRESH TOKEN HERE ──────────────
@@ -482,6 +506,9 @@ var HISTORY_KEY   = 'pfhistory';
 var LAST_PATHS_KEY    = 'pflastpaths';
 var LAST_PATTERNS_KEY = 'pflastpatterns';
 var ORIENT_KEY    = 'pforient';    // orientation dimensions cache
+var LINK_HISTORY_KEY = 'pflinkhistory'; // path -> {url, ts}, persisted across sessions/folders
+var LINK_HISTORY_MAX = 300;
+var LAST_PHOTOS_KEY  = 'pflastphotos';  // resolved photo list snapshot, for Offline Behavior "Always" boot
 
 // ── Global error surfacing (diagnostic) ──────────────────
 window.onerror = function(msg, src, line, col, err) {
@@ -693,10 +720,14 @@ var state = {
   browsePath:      '',
   skipCount:       0,
   paused:          false,
-  slideshowGen:    0
+  slideshowGen:    0,
+  offlineBehavior: 'disabled', // 'disabled' | 'whenNotConnected' | 'always'
+  isOffline:       false,      // detected connectivity state (whenNotConnected mode)
+  offlinePoolIdx:  0           // pointer into the offline-replay candidate pool
 };
 
 var linkCache = {};
+var linkHistory = {};         // path -> {url, ts}, persisted across sessions/folders (see loadLinkHistory)
 var blobCache = {};           // path -> objectUrl (preloaded next photos, in memory)
 var slideBlobUrls = { A: null, B: null }; // blob URLs currently held by slide elements
 var slidePhotoPaths = { A: null, B: null }; // which photo path each slide is currently showing
@@ -748,7 +779,8 @@ function saveSettings() {
       showPhotoInfo:   state.showPhotoInfo,
       autoRefresh:     state.autoRefresh,
       refreshInterval: state.refreshInterval,
-      autostart:       state.autostart
+      autostart:       state.autostart,
+      offlineBehavior: state.offlineBehavior
     }));
   } catch(e) {}
 }
@@ -772,6 +804,9 @@ function loadSettings() {
     if (typeof s.autoRefresh   === 'boolean') state.autoRefresh   = s.autoRefresh;
     if (s.refreshInterval) state.refreshInterval = s.refreshInterval;
     if (typeof s.autostart     === 'boolean') state.autostart     = s.autostart;
+    if (s.offlineBehavior === 'disabled' || s.offlineBehavior === 'whenNotConnected' || s.offlineBehavior === 'always') {
+      state.offlineBehavior = s.offlineBehavior;
+    }
   } catch(e) {}
 }
 
@@ -792,6 +827,8 @@ function syncSettingsUI() {
   document.getElementById('refreshIntervalRow').className =
     's-row' + (state.autoRefresh ? ' active' : '');
   document.getElementById('autostartCb').checked      = state.autostart;
+  document.getElementById('offlineBehaviorSel').value = state.offlineBehavior;
+  updateOfflineCacheLabel();
 }
 
 // ── View history ─────────────────────────────────────────
@@ -848,9 +885,103 @@ function pruneOrientationCache(rootFolders) {
   if (changed) { try { localStorage.setItem(ORIENT_KEY, JSON.stringify(cache)); } catch(e) {} }
 }
 
+// ── Offline cache ────────────────────────────────────────
+function loadLinkHistory() {
+  try {
+    var raw = localStorage.getItem(LINK_HISTORY_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch(e) { return {}; }
+}
+
+function saveLinkHistory() {
+  try { localStorage.setItem(LINK_HISTORY_KEY, JSON.stringify(linkHistory)); } catch(e) {}
+}
+
+function recordLink(path, url) {
+  linkHistory[path] = { url: url, ts: Date.now() };
+  var keys = Object.keys(linkHistory);
+  if (keys.length > LINK_HISTORY_MAX) {
+    keys.sort(function(a, b) { return linkHistory[a].ts - linkHistory[b].ts; });
+    for (var i = 0; i < keys.length - LINK_HISTORY_MAX; i++) delete linkHistory[keys[i]];
+  }
+  saveLinkHistory();
+  updateOfflineCacheLabel();
+}
+
+function forgetLink(path) {
+  delete linkHistory[path];
+  delete linkCache[path];
+  saveLinkHistory();
+  updateOfflineCacheLabel();
+}
+
+function getKnownUrl(path) {
+  if (linkCache[path]) return linkCache[path].url;
+  if (linkHistory[path]) return linkHistory[path].url;
+  return null;
+}
+
+function updateOfflineCacheLabel() {
+  var el = document.getElementById('offlineCacheCount');
+  if (!el) return;
+  var n = Object.keys(linkHistory).length;
+  el.textContent = n + (n === 1 ? ' link cached' : ' links cached');
+}
+
+function deleteOfflineCache() {
+  linkHistory = {};
+  linkCache = {};
+  try { localStorage.removeItem(LINK_HISTORY_KEY); } catch(e) {}
+  try { localStorage.removeItem(LAST_PHOTOS_KEY); } catch(e) {}
+  updateOfflineCacheLabel();
+  showToast('Offline cache cleared');
+}
+
+function saveLastPhotos() {
+  try {
+    localStorage.setItem(LAST_PHOTOS_KEY, JSON.stringify({
+      photos: state.allPhotos,
+      selectedPaths: state.selectedPaths,
+      ts: Date.now()
+    }));
+  } catch(e) {}
+}
+
+function loadLastPhotos() {
+  try {
+    var raw = localStorage.getItem(LAST_PHOTOS_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch(e) { return null; }
+}
+
+function inOfflineReplay() {
+  return state.offlineBehavior === 'always' ||
+    (state.offlineBehavior === 'whenNotConnected' && state.isOffline);
+}
+
+function setOffline(val) {
+  if (state.isOffline === val) return;
+  state.isOffline = val;
+  if (state.offlineBehavior === 'whenNotConnected') {
+    showToast(val ? 'Offline — showing cached photos' : 'Back online');
+  }
+}
+
+function showToast(msg) {
+  var b = document.getElementById('toastBanner');
+  b.textContent = msg; b.style.display = 'block';
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(function() { b.style.display = 'none'; }, 4000);
+}
+
 // ── Boot ─────────────────────────────────────────────────
 window.onload = function() {
   loadSettings();
+  linkHistory = loadLinkHistory();
+  updateOfflineCacheLabel();
+  if (typeof navigator.onLine === 'boolean') state.isOffline = !navigator.onLine;
+  window.addEventListener('online',  function() { setOffline(false); });
+  window.addEventListener('offline', function() { setOffline(true); });
 
   document.getElementById('btnConnect').addEventListener('click', onConnect);
   document.getElementById('tokenInput').addEventListener('keydown', function(e) {
@@ -927,6 +1058,8 @@ window.onload = function() {
   document.getElementById('autoRefreshCb').addEventListener('change', applyAutoRefresh);
   document.getElementById('refreshIntervalSel').addEventListener('change', applyRefreshInterval);
   document.getElementById('autostartCb').addEventListener('change', applyAutostart);
+  document.getElementById('offlineBehaviorSel').addEventListener('change', applyOfflineBehavior);
+  document.getElementById('btnDeleteOfflineCache').addEventListener('click', deleteOfflineCache);
   document.getElementById('btnSignOut').addEventListener('click', signOut);
 
   // Detect PKCE redirect back from Dropbox (?code=...)
@@ -957,10 +1090,23 @@ window.onload = function() {
       document.getElementById('setupSection').style.display = 'block';
       document.getElementById('setupStatus').textContent = 'Connection failed: ' + e.message;
     });
-  } else {
+  } else if (!(state.offlineBehavior === 'always' && bootFromCache())) {
     tryAutoConnect();
   }
 };
+
+function bootFromCache() {
+  var last = loadLastPhotos();
+  if (!last || !last.photos || !last.photos.length) return false;
+  state.allPhotos      = last.photos;
+  state.selectedPaths  = last.selectedPaths || [];
+  state.photos         = filterByOrientation(state.allPhotos);
+  state.index          = 0;
+  state.skipCount       = 0;
+  linkCache = {};
+  startSlideshow();
+  return true;
+}
 
 // ── Token ────────────────────────────────────────────────
 var pendingRefreshToken = null; // held between PKCE exchange and password setup
@@ -1078,6 +1224,7 @@ function tryAutostart() {
       state.index     = 0;
       state.skipCount = 0;
       linkCache       = {};
+      saveLastPhotos();
       startSlideshow();
     }).catch(function(e) {
       showError(e.message);
@@ -1203,6 +1350,7 @@ function clearToken() {
   slidePhotoPaths.A = null; slidePhotoPaths.B = null;
   try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
   try { localStorage.removeItem(LAST_PATHS_KEY); } catch(e) {}
+  try { localStorage.removeItem(LAST_PHOTOS_KEY); } catch(e) {}
   document.getElementById('slideshow').style.display = 'none';
   document.getElementById('slideA').classList.remove('active');
   document.getElementById('slideB').classList.remove('active');
@@ -1234,14 +1382,17 @@ function dbxPost(endpoint, body, _retried) {
           return;
         }
         if (xhr.status < 200 || xhr.status >= 300) {
-          reject(new Error('Dropbox error ' + xhr.status + ': ' + xhr.responseText));
+          var apiErr = new Error('Dropbox error ' + xhr.status + ': ' + xhr.responseText);
+          apiErr.kind = 'api';
+          apiErr.status = xhr.status;
+          reject(apiErr);
           return;
         }
         try { resolve(JSON.parse(xhr.responseText)); }
         catch(e) { reject(new Error('Invalid response from Dropbox')); }
       };
-      xhr.onerror   = function() { reject(new Error('Network error — cannot reach Dropbox.')); };
-      xhr.ontimeout = function() { reject(new Error('Timed out — Dropbox API unreachable.')); };
+      xhr.onerror   = function() { var e = new Error('Network error — cannot reach Dropbox.'); e.kind = 'network'; reject(e); };
+      xhr.ontimeout = function() { var e = new Error('Timed out — Dropbox API unreachable.'); e.kind = 'network'; reject(e); };
       xhr.send(JSON.stringify(body));
     });
   };
@@ -1559,6 +1710,7 @@ function startFromSelected() {
     state.index      = 0;
     state.skipCount  = 0;
     linkCache        = {};
+    saveLastPhotos();
     startSlideshow();
   }).catch(function(e) {
     showError(e.message);
@@ -1653,7 +1805,7 @@ function startSlideshow() {
   showScreen(null);
   startClock();
   startAutoRefresh();
-  advanceTo(state.index);
+  if (inOfflineReplay()) { advanceOfflinePool(state.slideshowGen, 1); } else { advanceTo(state.index); }
 }
 
 function advanceTo(idx) {
@@ -1673,7 +1825,7 @@ function advanceTo(idx) {
     updatePhotoInfo(photo);
     recordView(photo.path);
     scheduleNext();
-    preloadAhead(idx, 1);
+    if (!inOfflineReplay()) preloadAhead(idx, 1);
     return;
   }
 
@@ -1684,35 +1836,159 @@ function advanceTo(idx) {
     displaySlide(photo.path, blobUrl, gen);
     updatePhotoInfo(photo);
     recordView(photo.path);
-    preloadAhead(idx, 1);
+    if (!inOfflineReplay()) preloadAhead(idx, 1);
     return;
   }
 
-  showPreloadBar(true);
-  getTempLink(photo.path).then(function(url) {
+  resolveAndShow(photo, idx, gen);
+}
+
+// Resolves a photo's bytes and displays it, respecting Offline Behavior:
+// - "disabled": original behavior — fetch a temp link, point <img> at it directly.
+// - otherwise: try any already-known link first (session or persisted), only
+//   minting a fresh one when needed, and never touching the network while
+//   confirmed offline.
+function resolveAndShow(photo, idx, gen) {
+  var path = photo.path;
+
+  if (state.offlineBehavior === 'disabled') {
+    showPreloadBar(true);
+    getTempLink(path).then(function(url) {
+      if (gen !== state.slideshowGen) { showPreloadBar(false); return; }
+      state.skipCount = 0;
+      showPreloadBar(false);
+      displaySlide(path, url, gen);
+      updatePhotoInfo(photo);
+      recordView(path);
+      preloadAhead(idx, 1);
+    }).catch(function(e) {
+      showPreloadBar(false);
+      handleAdvanceFailure(photo, idx, gen);
+    });
+    return;
+  }
+
+  var afterSuccess = function(blob) {
     if (gen !== state.slideshowGen) { showPreloadBar(false); return; }
     state.skipCount = 0;
     showPreloadBar(false);
-    displaySlide(photo.path, url, gen);
+    var blobUrl = URL.createObjectURL(blob);
+    displaySlide(path, blobUrl, gen);
     updatePhotoInfo(photo);
-    recordView(photo.path);
-    preloadAhead(idx, 1);
-  }).catch(function(e) {
-    if (gen !== state.slideshowGen) { showPreloadBar(false); return; }
-    showPreloadBar(false);
-    state.skipCount++;
-    console.warn('Skip ' + photo.name + ': ' + e.message);
-    if (state.skipCount >= state.photos.length) {
-      state.skipCount = 0;
-      clearTimeout(state.timer);
-      document.getElementById('slideshow').style.display = 'none';
-      showError('Could not load any photos. Your token may lack "files.content.read" permission.');
-      setTimeout(function() { clearToken(); }, 4000);
-      return;
-    }
-    state.index = (idx + 1) % state.photos.length;
-    advanceTo(state.index);
-  });
+    recordView(path);
+    if (!inOfflineReplay()) preloadAhead(idx, 1);
+  };
+
+  var known = getKnownUrl(path);
+
+  if (inOfflineReplay()) {
+    if (!known) { advanceOfflinePool(gen, 1); return; }
+    showPreloadBar(true);
+    fetchBlob(known).then(afterSuccess).catch(function() {
+      forgetLink(path);
+      showPreloadBar(false);
+      advanceOfflinePool(gen, 1);
+    });
+    return;
+  }
+
+  if (known) {
+    showPreloadBar(true);
+    fetchBlob(known).then(afterSuccess).catch(function(e) {
+      if (e && e.kind === 'network') {
+        setOffline(true);
+        showPreloadBar(false);
+        advanceOfflinePool(gen, 1);
+        return;
+      }
+      // Online, but this particular link is dead — don't let getTempLink
+      // trivially hand the same stale URL back; force a real fetch.
+      delete linkCache[path];
+      fetchFreshLink();
+    });
+    return;
+  }
+
+  fetchFreshLink();
+
+  function fetchFreshLink() {
+    showPreloadBar(true);
+    getTempLink(path).then(function(url) {
+      if (gen !== state.slideshowGen) { showPreloadBar(false); return null; }
+      return fetchBlob(url);
+    }).then(function(blob) {
+      if (!blob) return;
+      afterSuccess(blob);
+    }).catch(function(e) {
+      showPreloadBar(false);
+      if (e && e.kind === 'network') { setOffline(true); advanceOfflinePool(gen, 1); return; }
+      if (e && e.kind === 'api') { forgetLink(path); }
+      handleAdvanceFailure(photo, idx, gen);
+    });
+  }
+}
+
+// Failure path for a photo that couldn't be resolved. Never signs the user
+// out — that's reserved for real Dropbox auth errors, which dbxPost already
+// handles on its own (401 retry-then-clearToken). A run of failures here is
+// always network/content related, so we just keep cycling and, if the whole
+// library fails in one pass, pause briefly and retry rather than giving up.
+function handleAdvanceFailure(photo, idx, gen) {
+  if (gen !== state.slideshowGen) return;
+  state.skipCount++;
+  console.warn('Skip ' + photo.name + ': load failed');
+  if (state.skipCount >= state.photos.length) {
+    state.skipCount = 0;
+    clearTimeout(state.timer);
+    showError('Could not load any photos right now. Retrying…');
+    state.timer = setTimeout(function() {
+      if (gen !== state.slideshowGen) return;
+      advanceTo(state.index);
+    }, state.interval);
+    return;
+  }
+  state.index = (idx + 1) % state.photos.length;
+  advanceTo(state.index);
+}
+
+// The set of currently-selected photos we have *some* URL on record for
+// (this session's linkCache or the persisted cross-session history).
+function offlineCandidates() {
+  var known = {};
+  var lcKeys = Object.keys(linkCache);
+  for (var i = 0; i < lcKeys.length; i++) known[lcKeys[i]] = true;
+  var lhKeys = Object.keys(linkHistory);
+  for (var j = 0; j < lhKeys.length; j++) known[lhKeys[j]] = true;
+  var result = [];
+  for (var k = 0; k < state.photos.length; k++) {
+    if (known[state.photos[k].path]) result.push(state.photos[k]);
+  }
+  return result;
+}
+
+// Steps through the offline-replay pool in the given direction (1 or -1).
+// If the pool is empty, waits one interval and tries again rather than
+// erroring out — connectivity or the cache may still recover.
+function advanceOfflinePool(gen, dir) {
+  if (gen !== state.slideshowGen) return;
+  var pool = offlineCandidates();
+  if (!pool.length) {
+    showToast('No cached photos available — waiting for connection');
+    clearTimeout(state.timer);
+    state.timer = setTimeout(function() {
+      if (gen !== state.slideshowGen) return;
+      if (inOfflineReplay()) advanceOfflinePool(gen, 1); else advanceTo(state.index);
+    }, state.interval);
+    return;
+  }
+  state.offlinePoolIdx = ((state.offlinePoolIdx + dir) % pool.length + pool.length) % pool.length;
+  var photo = pool[state.offlinePoolIdx];
+  var idx = 0;
+  for (var i = 0; i < state.photos.length; i++) {
+    if (state.photos[i].path === photo.path) { idx = i; break; }
+  }
+  state.index = idx;
+  resolveAndShow(photo, idx, gen);
 }
 
 function displaySlide(path, url, gen) {
@@ -1775,19 +2051,14 @@ function displaySlide(path, url, gen) {
   };
   nextImg.onerror = function() {
     if (gen !== state.slideshowGen) return;
-    delete linkCache[path];
-    state.skipCount++;
     console.warn('Image failed to decode: ' + path);
-    if (state.skipCount >= state.photos.length) {
-      state.skipCount = 0;
-      clearTimeout(state.timer);
-      document.getElementById('slideshow').style.display = 'none';
-      showError('Could not load any photos. Your token may lack "files.content.read" permission.');
-      setTimeout(function() { clearToken(); }, 4000);
-      return;
+    forgetLink(path);
+    var idx = 0, failedPhoto = null;
+    for (var i = 0; i < state.photos.length; i++) {
+      if (state.photos[i].path === path) { idx = i; failedPhoto = state.photos[i]; break; }
     }
-    state.index = (state.index + 1) % state.photos.length;
-    advanceTo(state.index);
+    if (!failedPhoto) failedPhoto = { name: path, path: path };
+    handleAdvanceFailure(failedPhoto, idx, gen);
   };
   nextImg.src = url;
 }
@@ -1795,7 +2066,10 @@ function displaySlide(path, url, gen) {
 function scheduleNext() {
   clearTimeout(state.timer);
   if (state.paused) return;
+  var gen = state.slideshowGen;
   state.timer = setTimeout(function() {
+    if (gen !== state.slideshowGen) return;
+    if (inOfflineReplay()) { advanceOfflinePool(gen, 1); return; }
     state.index = pickNextIndex();
     advanceTo(state.index);
   }, state.interval);
@@ -1851,12 +2125,18 @@ function calendarDayDiff(d1, d2) {
 }
 
 function preloadAhead(fromIdx, count) {
+  if (inOfflineReplay()) return;
   var gen = state.slideshowGen;
   for (var i = 1; i <= count; i++) {
     (function(path) {
       if (blobCache[path]) return;
-      var needsLink = !linkCache[path] || linkCache[path].expiresAt < Date.now() + 60000;
-      var linkPromise = needsLink ? getTempLink(path) : Promise.resolve(linkCache[path].url);
+      var linkPromise;
+      if (linkCache[path] && linkCache[path].expiresAt > Date.now() + 60000) {
+        linkPromise = Promise.resolve(linkCache[path].url);
+      } else {
+        var known = getKnownUrl(path);
+        linkPromise = known ? Promise.resolve(known) : getTempLink(path);
+      }
       linkPromise.then(function(url) {
         if (gen !== state.slideshowGen) return null;
         return fetchBlob(url);
@@ -1865,7 +2145,10 @@ function preloadAhead(fromIdx, count) {
         if (!blobCache[path]) {
           blobCache[path] = URL.createObjectURL(blob);
         }
-      }).catch(function() {});
+      }).catch(function(e) {
+        if (e && e.kind === 'network') setOffline(true);
+        if (e && e.kind === 'api') forgetLink(path);
+      });
     })(state.photos[(fromIdx + i) % state.photos.length].path);
   }
 }
@@ -1878,10 +2161,10 @@ function fetchBlob(url) {
     xhr.timeout = 60000;
     xhr.onload = function() {
       if (xhr.status === 200) { resolve(xhr.response); }
-      else { reject(new Error('HTTP ' + xhr.status)); }
+      else { var e = new Error('HTTP ' + xhr.status); e.kind = 'api'; e.status = xhr.status; reject(e); }
     };
-    xhr.onerror   = function() { reject(new Error('Network error')); };
-    xhr.ontimeout = function() { reject(new Error('Timeout')); };
+    xhr.onerror   = function() { var e = new Error('Network error'); e.kind = 'network'; reject(e); };
+    xhr.ontimeout = function() { var e = new Error('Timeout'); e.kind = 'network'; reject(e); };
     xhr.send();
   });
 }
@@ -1903,6 +2186,7 @@ function getTempLink(path) {
   return dbxPost('/files/get_temporary_link', { path: path })
     .then(function(res) {
       linkCache[path] = { url: res.link, expiresAt: Date.now() + 4 * 60 * 60 * 1000 };
+      recordLink(path, res.link);
       return res.link;
     });
 }
@@ -1950,11 +2234,12 @@ function updatePhotoInfo(photo) {
 // ── Auto-refresh ─────────────────────────────────────────
 function startAutoRefresh() {
   clearInterval(state.refreshTimer);
-  if (!state.autoRefresh || !state.selectedPaths.length) return;
+  if (!state.autoRefresh || !state.selectedPaths.length || state.offlineBehavior === 'always') return;
   state.refreshTimer = setInterval(refreshPhotos, state.refreshInterval);
 }
 
 function refreshPhotos() {
+  if (inOfflineReplay()) return;
   var promises = [];
   for (var i = 0; i < state.selectedPaths.length; i++) {
     promises.push(loadPhotosFromPath(state.selectedPaths[i]));
@@ -1973,7 +2258,7 @@ function refreshPhotos() {
         }
       }
     }
-    if (added) console.log('Auto-refresh: added ' + added + ' photo(s)');
+    if (added) { console.log('Auto-refresh: added ' + added + ' photo(s)'); saveLastPhotos(); }
   }).catch(function() {});
 }
 
@@ -1997,6 +2282,7 @@ function handleTap() {
 function skipPhoto(e) {
   e.stopPropagation();
   clearTimeout(state.timer);
+  if (inOfflineReplay()) { advanceOfflinePool(state.slideshowGen, 1); return; }
   state.index = (state.index + 1) % state.photos.length;
   advanceTo(state.index);
 }
@@ -2004,6 +2290,7 @@ function skipPhoto(e) {
 function prevPhoto(e) {
   e.stopPropagation();
   clearTimeout(state.timer);
+  if (inOfflineReplay()) { advanceOfflinePool(state.slideshowGen, -1); return; }
   state.index = (state.index - 1 + state.photos.length) % state.photos.length;
   advanceTo(state.index);
 }
@@ -2152,6 +2439,23 @@ function applyRefreshInterval() {
 function applyAutostart() {
   state.autostart = document.getElementById('autostartCb').checked;
   saveSettings();
+}
+
+function applyOfflineBehavior() {
+  var wasReplay = inOfflineReplay();
+  state.offlineBehavior = document.getElementById('offlineBehaviorSel').value;
+  saveSettings();
+  var nowReplay = inOfflineReplay();
+  if (!state.photos.length) return; // slideshow hasn't started yet; takes effect on next start
+  if (nowReplay && !wasReplay) {
+    showToast('Offline — showing cached photos');
+    clearTimeout(state.timer);
+    advanceOfflinePool(state.slideshowGen, 1);
+  } else if (!nowReplay && wasReplay) {
+    showToast('Back online');
+    clearTimeout(state.timer);
+    scheduleNext();
+  }
 }
 
 // ── Screen / UI helpers ──────────────────────────────────
